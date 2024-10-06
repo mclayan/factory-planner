@@ -1,6 +1,6 @@
 import argparse
 
-from cli import Cli, AddRecipeCommand, AddResourceCommand, FindRecipes
+from cli import Cli, AddRecipeCommand, AddResourceCommand, FindRecipes, BuildDependecyTree, ListObjects
 import repository
 
 if __name__ == '__main__':
@@ -16,7 +16,7 @@ if __name__ == '__main__':
     print(f'  resources: {resources_file}')
 
     repo = repository.load_repository(resources_file, recipes_file)
-    commands = [AddRecipeCommand(repo), AddResourceCommand(repo), FindRecipes(repo)]
+    commands = [AddRecipeCommand(repo), AddResourceCommand(repo), FindRecipes(repo), BuildDependecyTree(repo), ListObjects(repo)]
 
     cli = Cli(repo, commands)
     try:

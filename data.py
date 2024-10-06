@@ -9,9 +9,10 @@ class ResourceQuantity:
 
 class Resource:
 
-    def __init__(self, name: str, res_id: str):
+    def __init__(self, name: str, res_id: str, is_raw: bool=False):
         self.name = name
         self.id = res_id
+        self.is_raw = is_raw
 
     def __str__(self):
         return self.name
@@ -23,6 +24,7 @@ class Resource:
         return {
             'name': self.name,
             'id': self.id,
+            'raw': self.is_raw,
         }
 
 
@@ -72,19 +74,25 @@ class Production:
                                        [res_qt.scale(fact) for res_qt in self.byproducts])
 
     def __str__(self) -> str:
+        return self.str_for_rpm(self.base_rpm)
+
+    def str_for_rpm(self, rpm: float):
         result = f'Production "{self.product.name}": ['
         r_count = 0
         for resource in self.resources:
             if r_count > 0:
-                result += f' + {resource.scale(self.base_rpm)}'
+                result += f' + {resource.scale(rpm)}'
             else:
-                result += str(resource.scale(self.base_rpm))
+                result += str(resource.scale(rpm))
             r_count += 1
         result += f' -> {self.base_rpm}x({self.product})'
         for bp in self.byproducts:
-            result += f' + {bp.scale(self.base_rpm)}'
+            result += f' + {bp.scale(rpm)}'
 
         return result + ' p.m.]'
+
+    def get_base_rpm(self) -> float:
+        return self.base_rpm
 
 
 class Recipe:
@@ -103,7 +111,7 @@ class Recipe:
             self.products[res_qt.resource.id] = res_qt
 
     def production(self, product: Resource) -> Production | None:
-        if product.id not in self.products:
+        if product.id not in self.products.keys():
             return None
         else:
             prod_qt = self.products[product.id]
@@ -132,6 +140,14 @@ class Recipe:
 
         return result + ']'
 
+    def nth_product(self, n: int) -> Resource|None:
+        i = 0
+        for product in self.products.values():
+            if i == n:
+                return product.resource
+            i += 1
+        return None
+
     def as_dict(self) -> dict:
         return {
             'name': self.name,
@@ -140,5 +156,4 @@ class Recipe:
             'products': [r.as_dict() for r in self.products.values()],
             'resources': [r.as_dict() for r in self.resources.values()],
         }
-
 

@@ -14,29 +14,33 @@ class DuplicateKeyError(Exception):
 
 class RecipeRepository:
 
+    __slots__=('resources', 'recipes', 'mod_recipes', 'mod_resources')
+
     def __init__(self):
         self.resources: dict[str, Resource] = dict()
         self.recipes: dict[str, Recipe] = dict()
         self.mod_recipes = False
         self.mod_resources = False
 
-    def add_resource(self, resource: Resource):
+    def add_resource(self, resource: Resource, is_load=False):
         if self.resources.get(resource.id, None) is None:
             self.resources[resource.id] = resource
-            self.mod_resources = True
+            if not is_load:
+                self.mod_resources = True
         else:
             raise DuplicateKeyError(f'duplicate resource id: {resource.id}')
 
-    def add_recipe(self, recipe: Recipe):
+    def add_recipe(self, recipe: Recipe, is_load=False):
         if self.recipes.get(recipe.id, None) is None:
             self.recipes[recipe.id] = recipe
-            self.mod_recipes = True
+            if not is_load:
+                self.mod_recipes = True
         else:
             raise DuplicateKeyError(f'duplicate recipe id: {recipe.id}')
 
     def load_resource(self, d: dict):
-        resource = Resource(d['name'], d['id'])
-        self.add_resource(resource)
+        resource = Resource(d['name'], d['id'], d.get('raw', False))
+        self.add_resource(resource, True)
 
     def load_recipe(self, d: dict):
         name = d['name']
@@ -51,7 +55,7 @@ class RecipeRepository:
             products,
             timedelta(seconds=cycle_time)
         )
-        self.add_recipe(recipe)
+        self.add_recipe(recipe, True)
 
     def resource(self, res_id: str) -> Resource|None:
         return self.resources.get(res_id, None)
