@@ -304,7 +304,12 @@ class BuildDependecyTree(CliCommand):
         else:
             tree.build(self.repository, args.limit)
 
+        print('Dependency tree:')
         tree.print_tree()
+        print('\nAggregated resources:')
+        aggregate = tree.get_aggregate()
+        for rtpl in aggregate.calculate_productions():
+            print(f'{rtpl[0]} ({rtpl[2]:.1f}) => {rtpl[1]}')
 
 
 class ListObjects(CliCommand):

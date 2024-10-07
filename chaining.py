@@ -1,9 +1,52 @@
 import typing
 from abc import ABC, abstractmethod
+from argparse import ArgumentError
 from typing import Iterator
 
 from data import Resource, Production, ResourceQuantity, Recipe
 from repository import RecipeRepository
+
+
+class ResQtRecipe:
+
+    def __init__(self, resource: Resource, qt: float, prod_source: Recipe):
+        self.quantity = qt
+        self.recipe = prod_source
+        self.resource = resource
+
+
+class ResourceAggregate:
+
+    def __init__(self):
+        self.recipes: dict[str, ResQtRecipe] = dict()
+        self.raw: dict[str, ResourceQuantity] = dict()
+
+    def add(self, res_qt: ResourceQuantity, recipe: typing.Optional[Recipe]):
+        if recipe is None:
+            existing = self.raw.get(res_qt.resource.id, None)
+            if existing is not None:
+                existing.quantity += res_qt.quantity
+            else:
+                self.raw[res_qt.resource.id] = res_qt
+        else:
+            existing = self.recipes.get(recipe.id, None)
+            if existing is not None:
+                existing.quantity += res_qt.quantity
+            else:
+                self.recipes[recipe.id] = ResQtRecipe(res_qt.resource, res_qt.quantity, recipe)
+
+    def __iter__(self):
+        return self.recipes.values().__iter__()
+
+    def calculate_productions(self) -> list[tuple[str, Production, float]]:
+        results = []
+        for rqr in self.recipes.values():
+            production = rqr.recipe.production(rqr.resource)
+            rec_fact = rqr.quantity / production.base_rpm
+            results.append((f'Recipe: {rqr.recipe.name}', production, rec_fact))
+        for rr in self.raw.values():
+            results.append((f'Resource: {rr.resource.name}', Production(rr.resource, [], [], 1.0), rr.quantity))
+        return results
 
 
 class BaseNode(ABC): ...
@@ -23,7 +66,10 @@ class BaseNode(ABC):
     def print_node(self): ...
 
     @abstractmethod
-    def print_children(self, level: int): ...
+    def print_children(self, level: int, pfx: str): ...
+
+    @abstractmethod
+    def aggregate_resources(self, aggregate: ResourceAggregate): ...
 
 
 class EndNode(BaseNode):
@@ -45,8 +91,11 @@ class EndNode(BaseNode):
     def print_node(self):
         print(f'{self.resource.resource.name}: {self.resource.quantity:.1f}')
 
-    def print_children(self, level: int):
+    def print_children(self, level: int, pfx: str):
         return
+
+    def aggregate_resources(self, aggregate: ResourceAggregate):
+        aggregate.add(self.resource, None)
 
 
 class AltNode(BaseNode):
@@ -89,11 +138,16 @@ class AltNode(BaseNode):
             production = '<n/a>'
         print(f'[{self.active_slot}] {production}')
 
-    def print_children(self, level: int):
+    def print_children(self, level: int, pfx: str):
         if len(self.slots) > 0:
             node = self.active
             if node is not None:
-                node.print_children(level + 1)
+                node.print_children(level + 1, pfx)
+
+    def aggregate_resources(self, aggregate: ResourceAggregate):
+        active = self.active
+        if active is not None:
+            active.aggregate_resources(aggregate)
 
 
 class ProdNode(BaseNode):
@@ -137,18 +191,29 @@ class ProdNode(BaseNode):
     def print_node(self):
         print(f'{self.production.str_for_rpm(self.rpm)}')
 
-    def print_children(self, level: int):
+    def print_children(self, level: int, pfx: str):
         # ├ └ ─
 
         i = 1
         for child_node in self.children:
-            w_str = '{:{width}}{}── '.format('',
-                                             '├' if i < len(self.children) else '└',
+            last_child = i < len(self.children)
+            w_str = '{}── '.format('├' if last_child else '└',
                                              width=level * 2)
+            c_pfx = '{pfx}{}   '.format(
+                '│' if last_child else ' ',
+                pfx=pfx
+            )
+            print(pfx, end='')
             print(w_str, end='')
             child_node.print_node()
-            child_node.print_children(level + 1)
+            child_node.print_children(level + 1, c_pfx)
             i += 1
+
+    def aggregate_resources(self, aggregate: ResourceAggregate):
+        aggregate.add(ResourceQuantity(self.production.product, self.rpm), self.recipe)
+
+        for child_node in self.children:
+            child_node.aggregate_resources(aggregate)
 
 
 class ProductionTree:
@@ -161,4 +226,10 @@ class ProductionTree:
 
     def print_tree(self):
         self.root.print_node()
-        self.root.print_children(0)
+        self.root.print_children(0, '')
+
+    def get_aggregate(self) -> ResourceAggregate:
+        aggregate = ResourceAggregate()
+        self.root.aggregate_resources(aggregate)
+
+        return aggregate
