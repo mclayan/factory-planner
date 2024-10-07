@@ -1,27 +1,34 @@
+import typing
 from abc import ABC, abstractmethod
 from typing import Iterator
 
 from data import Resource, Production, ResourceQuantity, Recipe
 from repository import RecipeRepository
 
-class BaseNode(ABC):
-    pass
+
+class BaseNode(ABC): ...
+
 
 class BaseNode(ABC):
-
     __slots__ = ('parent', 'children')
 
-    def __init__(self, parent: BaseNode|None):
+    def __init__(self, parent: BaseNode | None):
         self.parent = parent
 
     @abstractmethod
     def __iter__(self) -> Iterator:
         pass
 
+    @abstractmethod
+    def print_node(self): ...
+
+    @abstractmethod
+    def print_children(self, level: int): ...
+
 
 class EndNode(BaseNode):
 
-    def __init__(self, resource: ResourceQuantity, parent: BaseNode, end_type: str='unknown'):
+    def __init__(self, resource: ResourceQuantity, parent: BaseNode, end_type: str = 'unknown'):
         super().__init__(parent)
         self.resource = resource
         if end_type.lower() == 'source':
@@ -35,9 +42,11 @@ class EndNode(BaseNode):
     def __iter__(self) -> Iterator:
         return list().__iter__()
 
+    def print_node(self):
+        print(f'{self.resource.resource.name}: {self.resource.quantity:.1f}')
 
-class ProdNode:
-    pass
+    def print_children(self, level: int):
+        return
 
 
 class AltNode(BaseNode):
@@ -47,17 +56,17 @@ class AltNode(BaseNode):
         self.slots = []
         self.active_slot = 0
 
-    def add(self, node: ProdNode):
+    def add(self, node: 'ProdNode'):
         self.slots.append(node)
-
 
     def sort(self, order: str = 'stations'):
         if order == 'stations':
-            self.slots.sort(key=Production.get_base_rpm, reverse=True)
+            self.slots.sort(key=lambda node: node.production.get_base_rpm(), reverse=True)
         elif order == 'energy':
             pass
 
-    def active(self) -> ProdNode|None:
+    @property
+    def active(self) -> typing.Optional['ProdNode']:
         if len(self.slots) > self.active_slot:
             return self.slots[self.active_slot]
         elif len(self.slots) > 0:
@@ -66,16 +75,30 @@ class AltNode(BaseNode):
             return None
 
     def __iter__(self):
-        active = self.active()
+        active = self.active
         if active is None:
             raise Exception('invalid active slot!')
         else:
             return active.__iter__()
 
+    def print_node(self):
+        if len(self.slots) > 0:
+            node = self.active
+            production = node.production.str_for_rpm(node.rpm)
+        else:
+            production = '<n/a>'
+        print(f'[{self.active_slot}] {production}')
+
+    def print_children(self, level: int):
+        if len(self.slots) > 0:
+            node = self.active
+            if node is not None:
+                node.print_children(level + 1)
+
 
 class ProdNode(BaseNode):
 
-    def __init__(self, recipe: Recipe, production: Production, rpm: float, parent: ProdNode|None):
+    def __init__(self, recipe: Recipe, production: Production, rpm: float, parent: typing.Optional['ProdNode']):
         super().__init__(parent)
         self.production = production
         self.recipe = recipe
@@ -108,13 +131,34 @@ class ProdNode(BaseNode):
     def __iter__(self):
         return self.children.__iter__()
 
+    def __str__(self):
+        return f'Product="{self.production.product.name}" rpm={self.rpm}'
+
+    def print_node(self):
+        print(f'{self.production.str_for_rpm(self.rpm)}')
+
+    def print_children(self, level: int):
+        # ├ └ ─
+
+        i = 1
+        for child_node in self.children:
+            w_str = '{:{width}}{}── '.format('',
+                                             '├' if i < len(self.children) else '└',
+                                             width=level * 2)
+            print(w_str, end='')
+            child_node.print_node()
+            child_node.print_children(level + 1)
+            i += 1
+
 
 class ProductionTree:
 
     def __init__(self, root_recipe: Recipe, target_product: Resource, target_rpm: float):
         self.root = ProdNode(root_recipe, root_recipe.production(target_product), target_rpm, None)
 
-    def build(self, repository: RecipeRepository, max_depth:int=15):
+    def build(self, repository: RecipeRepository, max_depth: int = 15):
         self.root.resolve_children(repository, 0, max_depth)
 
-
+    def print_tree(self):
+        self.root.print_node()
+        self.root.print_children(0)

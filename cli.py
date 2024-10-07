@@ -304,7 +304,7 @@ class BuildDependecyTree(CliCommand):
         else:
             tree.build(self.repository, args.limit)
 
-        print(f'tree built successfully.')
+        tree.print_tree()
 
 
 class ListObjects(CliCommand):

@@ -38,7 +38,7 @@ class ResourceQuantity:
         return ResourceQuantity(self.resource, self.quantity * fac)
 
     def __str__(self):
-        return f'{self.quantity}x({self.resource.name})'
+        return f'{self.quantity:.1f}x({self.resource.name})'
 
     def as_dict(self) -> dict:
         return {
@@ -66,18 +66,16 @@ class Production:
         self.base_rpm = base_rpm
 
     def for_rpm(self, rpm: float) -> ProductionResources:
-        if rpm == self.base_rpm:
-            return ProductionResources(self.resources.copy(), self.byproducts.copy())
-        else:
-            fact = rpm / self.base_rpm
-            return ProductionResources([res_qt.scale(fact) for res_qt in self.resources],
-                                       [res_qt.scale(fact) for res_qt in self.byproducts])
+        resources = [r_qt.scale(rpm) for r_qt in self.resources]
+        byproducts = [r_qt.scale(rpm) for r_qt in self.byproducts]
+        return ProductionResources(resources, byproducts)
 
     def __str__(self) -> str:
         return self.str_for_rpm(self.base_rpm)
 
     def str_for_rpm(self, rpm: float):
-        result = f'Production "{self.product.name}": ['
+        recipe_fact = rpm / self.base_rpm
+        result = f'{recipe_fact:.1f}x "{self.product.name}": ['
         r_count = 0
         for resource in self.resources:
             if r_count > 0:
@@ -85,7 +83,7 @@ class Production:
             else:
                 result += str(resource.scale(rpm))
             r_count += 1
-        result += f' -> {self.base_rpm}x({self.product})'
+        result += f' -> {rpm:.1f}x({self.product})'
         for bp in self.byproducts:
             result += f' + {bp.scale(rpm)}'
 
