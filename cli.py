@@ -244,7 +244,7 @@ class BuildDependecyTree(CliCommand):
     cmd_name = 'tree'
 
     def __init__(self, repo: RecipeRepository):
-        parser = ArgumentParser()
+        parser = ArgumentParser(prog=self.cmd_name)
         parser.add_argument('recipe_sel', metavar='RECIPE')
         parser.add_argument('-l', '--limit', type=int, dest='limit', default=None, help='Maximum tree depth (recursion)')
         parser.add_argument('-p', '--product', type=str, dest='product', default=None, help='Product to select from recipe. Optional if recipe produces only one product.')
@@ -309,14 +309,14 @@ class BuildDependecyTree(CliCommand):
         print('\nAggregated resources:')
         aggregate = tree.get_aggregate()
         for rtpl in aggregate.calculate_productions():
-            print(f'{rtpl[0]} ({rtpl[2]:.1f}) => {rtpl[1]}')
+            print(f'{rtpl[0]} ({rtpl[2]:.1f}) => {rtpl[1]}  ==> {rtpl[2] * rtpl[1].base_rpm} p.m.')
 
 
 class ListObjects(CliCommand):
     cmd_name = 'ls'
 
     def __init__(self, repo: RecipeRepository):
-        parser = ArgumentParser()
+        parser = ArgumentParser(prog=self.cmd_name)
         parser.add_argument('-p', '--product', type=str, default=None, help='Display specific resource/product.')
         parser.add_argument('-r', '--recipe', type=str, default=None, help='Display specific recipe.')
         parser.add_argument('type_name', metavar='TYPE', nargs='?', default=None, choices=['r', 'recipes', 'R', 'resources'])
