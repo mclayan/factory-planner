@@ -1,32 +1,38 @@
 import shlex
-from argparse import ArgumentParser, ArgumentError
+import typing
 from abc import ABC, abstractmethod
+from argparse import ArgumentParser, ArgumentError
 from collections.abc import Iterator
 from datetime import timedelta
-from itertools import product
 from typing import Any
 
+import chaining
 from chaining import ProductionTree
-from data import Resource, ResourceQuantity, Recipe
+from data import Resource
 from repository import RecipeRepository, DuplicateKeyError, RecipeBuilder
 
 
-class ObjectStub:
-    pass
-
-
 def generate_id(name: str) -> str:
-    return name.lower().replace(' ', '_')
+    return name.lower().replace(' ', '_')\
+        .replace('(', '')\
+        .replace(')', '')\
+        .replace('[', '')\
+        .replace(']', '')\
+        .replace('{', '')\
+        .replace('}', '')\
+        .replace('"', '')\
+        .replace("'", '')\
+        .replace('__', '_')
 
 
 class ObjectStub:
 
-    def __init__(self, name: str | None, id: str | None):
+    def __init__(self, name: typing.Optional[str], id: typing.Optional[str]):
         self.name = name
         self.id = id
 
     @staticmethod
-    def parse(s: str) -> ObjectStub | None:
+    def parse(s: str) -> typing.Optional['ObjectStub']:
         if s.startswith('@'):
             if len(s) <= 1:
                 print(f'Error: invalid resource_id: "@". Should be "@<id>"')
@@ -88,6 +94,69 @@ class AddResourceCommand(CliCommand):
             print(f'{resource_id}: {resource}')
         except DuplicateKeyError as e:
             print(f'Failed to add resource: {e}')
+
+
+class AddRawResourceRecipe(CliCommand):
+    cmd_name = 'add-source'
+
+    def __init__(self, repo: RecipeRepository):
+        parser = ArgumentParser(prog=AddRawResourceRecipe.cmd_name)
+        parser.add_argument('-i', '--id', metavar='NAME', dest='recipe_id', help='Set recipe id.')
+        parser.add_argument('-p', '--product', help='Resource produced by executing the recipe.', nargs=2,
+                            action='extend', dest='products')
+        parser.add_argument('-s', '--source', metavar='NAME', dest='source_name', required=True)
+        parser.add_argument('name', metavar='NAME', help='Name of the recipe.')
+        super().__init__(parser)
+
+        self.repository = repo
+
+    def command_name(self) -> str:
+        return AddRawResourceRecipe.cmd_name
+
+    @staticmethod
+    def parse_resources(res_list: list[str]) -> tuple[ObjectStub, float]:
+        it_res: Iterator[str] = res_list.__iter__()
+        try:
+            res = it_res.__next__()
+            count = it_res.__next__()
+        except StopIteration:
+            print(
+                f'Error: invalid value for "{res}": the product argument must be specified as "<name> <quantity>"')
+            return None
+        resource = ObjectStub.parse(res)
+        quantity = float(count)
+
+        return resource, quantity
+
+    def execute(self, command_str: str):
+        args = self.parse_arguments(command_str)
+        recipe_name = args.name
+        recipe_id = args.recipe_id
+        if recipe_id is None or len(recipe_id.strip()) == 0:
+            recipe_id = generate_id(recipe_name)
+
+        if self.repository.recipe(recipe_id) is not None:
+            print(f'Error: a recipe with the id {recipe_id} already exists!')
+            return
+
+        product_stub = self.parse_resources(args.products)
+        prod_name = product_stub[0].name
+        prod_id = product_stub[0].id
+        product = self.repository.resource(prod_id) if prod_id is not None else self.repository.resource_by_name(prod_name)
+
+        recipe = RecipeBuilder(self.repository) \
+            .cycle_time(timedelta(minutes=1)) \
+            .name(recipe_name) \
+            .id(recipe_id) \
+            .product(product, product_stub[1]) \
+            .build()
+        recipe.source_name = args.source_name
+
+        try:
+            self.repository.add_recipe(recipe)
+            print(recipe)
+        except DuplicateKeyError as e:
+            print(f'Failed to add recipe "{recipe_name}": {e}')
 
 
 class AddRecipeCommand(CliCommand):
@@ -310,6 +379,13 @@ class BuildDependecyTree(CliCommand):
         aggregate = tree.get_aggregate()
         for rtpl in aggregate.calculate_productions():
             print(f'{rtpl[0]} ({rtpl[2]:.1f}) => {rtpl[1]}  ==> {rtpl[2] * rtpl[1].base_rpm} p.m.')
+
+        graph = chaining.convert_to_graph(tree)
+        graph.integer_scales = True
+        graph.update_scales()
+        print('\nStages & stations to build:')
+        for stage in graph.as_list():
+            print(f'stage {stage.level: 2}: {stage}')
 
 
 class ListObjects(CliCommand):

@@ -1,4 +1,5 @@
 import json
+import typing
 from argparse import ArgumentError
 from datetime import timedelta
 from typing import Self
@@ -55,21 +56,23 @@ class RecipeRepository:
             products,
             timedelta(seconds=cycle_time)
         )
+        if 'source_name' in d:
+            recipe.source_name = d['source_name']
         self.add_recipe(recipe, True)
 
-    def resource(self, res_id: str) -> Resource|None:
+    def resource(self, res_id: str) -> typing.Optional[Resource]:
         return self.resources.get(res_id, None)
 
     def recipe(self, rec_id: str) -> Recipe|None:
         return self.recipes.get(rec_id, None)
 
-    def resource_by_name(self, name: str) -> Resource|None:
+    def resource_by_name(self, name: str) -> typing.Optional[Resource]:
         for resource in self.resources.values():
             if resource.name == name:
                 return resource
         return None
 
-    def recipe_by_name(self, name: str) -> Recipe|None:
+    def recipe_by_name(self, name: str) -> typing.Optional[Recipe]:
         for recipe in self.recipes.values():
             if recipe.name == name:
                 return recipe
@@ -78,7 +81,7 @@ class RecipeRepository:
     def find_recipes_by_product(self, product: Resource) -> list[Recipe]:
         results = []
         for recipe in self.recipes.values():
-            if recipe.products.get(product.id) is not None:
+            if product.id in recipe.products:
                 results.append(recipe)
 
         return results
@@ -142,7 +145,7 @@ class RecipeBuilder:
     def resource(self, resource: str|Resource, quantity: float) -> Self:
         resource = self._repo.resource(resource) if resource is str else resource
         if resource is None:
-            raise ArgumentError(f'resource {resource} not found!')
+            raise ArgumentError(None, f'resource {resource} not found!')
 
         self._resources.append(ResourceQuantity(resource, quantity))
         return self

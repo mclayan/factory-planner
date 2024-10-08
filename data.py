@@ -1,11 +1,7 @@
-import json
+import math
+import typing
 from datetime import timedelta
 from typing import Self
-
-
-class ResourceQuantity:
-    pass
-
 
 class Resource:
 
@@ -17,7 +13,7 @@ class Resource:
     def __str__(self):
         return self.name
 
-    def n(self, n: float) -> ResourceQuantity:
+    def n(self, n: float) -> 'ResourceQuantity':
         return ResourceQuantity(self, n)
 
     def as_dict(self) -> dict[str, str]:
@@ -47,6 +43,43 @@ class ResourceQuantity:
         }
 
 
+class ResourceQuantities:
+
+    def __init__(self, resources: list[ResourceQuantity]):
+        self._inner: dict[str, ResourceQuantity] = dict()
+        for res in resources:
+            res_id = res.resource.id
+            if res.resource.id in self._inner:
+                self._inner[res_id].quantity += res.quantity
+            else:
+                self._inner[res_id] = res
+
+    def add(self, res_qt: ResourceQuantity):
+        res_id = res_qt.resource.id
+        if res_id in self._inner:
+            self._inner[res_id].quantity += res_qt.quantity
+        else:
+            self._inner[res_id] = res_qt
+
+    def pairs(self):
+        return self._inner.items()
+
+    def __getitem__(self, item):
+        return self._inner.__getitem__(item)
+
+    def __setitem__(self, key, value):
+        self._inner.__setitem__(key, value)
+
+    def __contains__(self, item):
+        return self._inner.__contains__(item)
+
+    def __iter__(self):
+        return self._inner.values().__iter__()
+
+    def __len__(self):
+        return self._inner.__len__()
+
+
 class ProductionResources:
 
     def __init__(self, resources: list[ResourceQuantity], byproducts: list[ResourceQuantity]):
@@ -54,7 +87,7 @@ class ProductionResources:
         self.byproducts = byproducts
 
 
-class Production:
+class TargetedProduction:
 
     def __init__(self, product: Resource,
                  resources: list[ResourceQuantity],
@@ -93,43 +126,55 @@ class Production:
         return self.base_rpm
 
 
+class RecipeComponents:
+
+    def __init__(self, resources: ResourceQuantities, products: ResourceQuantities):
+        self.resources = resources
+        self.products = products
+
+
 class Recipe:
 
     def __init__(self, name: str, recipe_id: str, resources: list[ResourceQuantity], products: list[ResourceQuantity], cycle_time: timedelta):
         self.name = name
         self.id = recipe_id
         self.cycle_time = cycle_time.total_seconds()
+        self.resources = ResourceQuantities([r for r in resources])
+        self.products = ResourceQuantities([p for p in products])
+        self.source_name: typing.Optional[str] = None
 
-        self.resources: dict[str, ResourceQuantity] = dict()
-        for res_qt in resources:
-            self.resources[res_qt.resource.id] = res_qt
-
-        self.products: dict[str, ResourceQuantity] = dict()
-        for res_qt in products:
-            self.products[res_qt.resource.id] = res_qt
-
-    def production(self, product: Resource) -> Production | None:
-        if product.id not in self.products.keys():
+    def production(self, product: Resource) -> typing.Optional[TargetedProduction]:
+        if product.id not in self.products:
             return None
         else:
             prod_qt = self.products[product.id]
             prod_factor = prod_qt.quantity
-            byproducts = [prod.scale(prod_factor) for p_id, prod in self.products.items() if p_id != product.id]
+            byproducts = [prod.scale(prod_factor) for p_id, prod in self.products.pairs() if p_id != product.id]
             rpm = (60 / self.cycle_time) * prod_factor
-            return Production(product, [res.scale(1 / prod_factor) for res in self.resources.values()], byproducts, rpm)
+            return TargetedProduction(product, [res.scale(1 / prod_factor) for res in self.resources], byproducts, rpm)
+
+    def scaled(self, factor: float) -> RecipeComponents:
+        rpm_factor = 60 / self.cycle_time
+        scale_factor = rpm_factor * factor
+        requirements = ResourceQuantities([rq.scale(scale_factor) for rq in self.resources])
+        products = ResourceQuantities([rq.scale(scale_factor) for rq in self.products])
+        return RecipeComponents(requirements, products)
+
 
     def __str__(self) -> str:
         result = f'Recipe "{self.name}": ['
         r_count = 0
-        for resource in self.resources.values():
+        for resource in self.resources:
             if r_count > 0:
                 result += f' + {resource}'
             else:
                 result += str(resource)
             r_count += 1
+        if r_count == 0:
+            result += self.source_name if self.source_name is not None else '()'
         result += f' -> '
         prod_count = 0
-        for prod in self.products.values():
+        for prod in self.products:
             if prod_count > 0:
                 result += f' + {prod}'
             else:
@@ -138,20 +183,83 @@ class Recipe:
 
         return result + ']'
 
-    def nth_product(self, n: int) -> Resource|None:
+    def str_for_rpm(self) -> str:
+        result = f'Recipe "{self.name}": ['
+        r_count = 0
+        components = self.scaled(1.0)
+        for resource in components.resources:
+            if r_count > 0:
+                result += f' + {resource}'
+            else:
+                result += str(resource)
+            r_count += 1
+        if r_count == 0:
+            result += self.source_name if self.source_name is not None else '()'
+        result += f' -> '
+        prod_count = 0
+        for prod in components.products:
+            if prod_count > 0:
+                result += f' + {prod}'
+            else:
+                result += str(prod)
+            prod_count += 1
+
+        return result + ' RPM]'
+
+    def nth_product(self, n: int) -> typing.Optional[Resource]:
         i = 0
-        for product in self.products.values():
+        for product in self.products:
             if i == n:
                 return product.resource
             i += 1
         return None
 
     def as_dict(self) -> dict:
-        return {
+        result = {
             'name': self.name,
             'id': self.id,
             'cycle_secs': self.cycle_time,
-            'products': [r.as_dict() for r in self.products.values()],
-            'resources': [r.as_dict() for r in self.resources.values()],
+            'products': [r.as_dict() for r in self.products],
+            'resources': [r.as_dict() for r in self.resources]
         }
+        if self.source_name is not None:
+            result['source_name'] = self.source_name
+        return result
 
+    def scale_factor_for_product(self, product: Resource, target_rpm: float) -> float:
+        base_production = self.production(product)
+        return target_rpm / base_production.base_rpm
+
+
+class ScaledRecipe:
+
+    def __init__(self, recipe: Recipe, scale: float):
+        self.recipe = recipe
+        self.scale = scale
+
+    def scaled_components(self) -> RecipeComponents:
+        return self.recipe.scaled(self.scale)
+
+    def recipe_id(self) -> str:
+        return self.recipe.id
+
+
+    def scale_for_min_rpm(self, product_quantities: ResourceQuantities):
+        new_scale = self.scale
+        products = self.scaled_components().products
+        for target_product in product_quantities:
+            p_id = target_product.resource.id
+            if p_id in products:
+                rpm_factor = target_product.quantity / products[p_id].quantity
+                adj_scal = self.scale * rpm_factor
+                if adj_scal > new_scale:
+                    new_scale = adj_scal
+        if new_scale - self.scale > 0.09:
+            self.scale = new_scale
+
+    def ceil_scale(self):
+        if self.scale - int(self.scale) > 0.09:
+            self.scale = math.ceil(self.scale)
+
+    def __repr__(self):
+        return f'ScaledRecipe[{self.scale:.2f}x "{self.recipe.name}"]'
