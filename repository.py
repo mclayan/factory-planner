@@ -114,6 +114,8 @@ def save_repository(repo: RecipeRepository, resources_path: str, recipes_path: s
 
         with open(recipes_path, 'wt') as recipes_file:
             json.dump(j_rec_arr, recipes_file)
+    else:
+        print(f'Recipes not modified, skipping saving.')
 
     if repo.mod_resources:
         j_res_arr = []
@@ -122,6 +124,8 @@ def save_repository(repo: RecipeRepository, resources_path: str, recipes_path: s
 
         with open(resources_path, 'wt') as res_file:
             json.dump(j_res_arr, res_file)
+    else:
+        print(f'Resources not modified, skipping saving.')
 
 
 class RecipeBuilder:

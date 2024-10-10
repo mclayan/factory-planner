@@ -1,13 +1,26 @@
 import math
 import typing
+from abc import ABC
 from datetime import timedelta
 from typing import Self
 
-class Resource:
+class Entity(ABC):
+
+    def __init__(self, name: str, entity_id: str):
+        self.name = name
+        self.id = entity_id
+
+    def get_name(self) -> str:
+        return self.name
+
+    def get_id(self) -> str:
+        return self.id
+
+
+class Resource(Entity):
 
     def __init__(self, name: str, res_id: str, is_raw: bool=False):
-        self.name = name
-        self.id = res_id
+        super().__init__(name, res_id)
         self.is_raw = is_raw
 
     def __str__(self):
@@ -133,11 +146,10 @@ class RecipeComponents:
         self.products = products
 
 
-class Recipe:
+class Recipe(Entity):
 
     def __init__(self, name: str, recipe_id: str, resources: list[ResourceQuantity], products: list[ResourceQuantity], cycle_time: timedelta):
-        self.name = name
-        self.id = recipe_id
+        super().__init__(name, recipe_id)
         self.cycle_time = cycle_time.total_seconds()
         self.resources = ResourceQuantities([r for r in resources])
         self.products = ResourceQuantities([p for p in products])
