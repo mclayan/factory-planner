@@ -1,4 +1,5 @@
 import json
+import re
 import typing
 from argparse import ArgumentError
 from datetime import timedelta
@@ -14,6 +15,7 @@ class DuplicateKeyError(Exception):
 
 
 class RecipeRepository:
+    __RX_ID = re.compile('([a-z]+([a-z0-9]|_)*)')
 
     __slots__=('resources', 'recipes', 'mod_recipes', 'mod_resources')
 
@@ -136,6 +138,9 @@ class RecipeRepository:
                     return False
         return True
 
+    @staticmethod
+    def validate_id_format(id_str: str) -> bool:
+        return RecipeRepository.__RX_ID.fullmatch(id_str) is not None
 
 
 

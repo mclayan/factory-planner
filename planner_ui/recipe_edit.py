@@ -12,12 +12,13 @@ from repository import RecipeRepository
 
 class ResourceQuantityEditController(Controller[tuple[ResourceQuantities, float]]):
 
-    def __init__(self, master, repository: RecipeRepository, c0_name: str):
+    def __init__(self, master, name: str, parent: typing.Optional[Controller], repository: RecipeRepository, c0_name: str):
+        super().__init__(name, parent)
         self.var_quantity = tk.StringVar()
 
         self.view = ResourceQuantityEdit(master, self)
-        self.res_qt_select_ctl = ResQtSelectController(self.view, c0_name)
-        self.resource_select_ctl = EntitySelectController(self.view, repository, entity_type=Resource, is_readonly=True)
+        self.res_qt_select_ctl = ResQtSelectController(self.view, 'resource_qt_select', self, c0_name)
+        self.resource_select_ctl = EntitySelectController(self.view, 'resource_select', self, repository, entity_type=Resource, is_readonly=True)
         self.listeners_change = []
         self.view.init_components()
 
@@ -94,13 +95,13 @@ class ResourceQuantityEdit(ttk.Frame):
 
 class RecipeEditController(RootController[Recipe]):
 
-    def __init__(self, master, repository: RecipeRepository):
-        super().__init__(repository)
+    def __init__(self, master, name: str, parent: typing.Optional[Controller], repository: RecipeRepository):
+        super().__init__(name, parent, repository)
         self.is_mod = False
         self.view = RecipeEditView(master, self)
-        self.recipe_select_ctl = entity_select.EntitySelectController(self.view, repository, Recipe, 'Recipe', True, False)
-        self.products_ctl = ResourceQuantityEditController(self.view, repository, 'Resource')
-        self.resources_ctl = ResourceQuantityEditController(self.view, repository, 'Product')
+        self.recipe_select_ctl = entity_select.EntitySelectController(self.view, 'recipe_select', self, repository, Recipe, 'Recipe', True, False)
+        self.products_ctl = ResourceQuantityEditController(self.view, 'products_qt_edit', self, repository, 'Resource')
+        self.resources_ctl = ResourceQuantityEditController(self.view, 'resources_qt_edit', self, repository, 'Product')
 
         self.view.init_components()
         self.recipe_select_ctl.register_cb_sel_change(self.cb_recipe_sel_change)
@@ -119,10 +120,13 @@ class RecipeEditController(RootController[Recipe]):
     def set_value(self, val: T):
         pass
 
-    def cb_attr_change(self):
-        if not self.is_mod:
-            self.is_mod = True
+    def cb_attr_change(self, is_mod: bool):
+        print(f'{self}: attributes changed: is_mod={is_mod}')
+        if is_mod and not self.is_mod:
             self.view.btn_save.configure(state='normal')
+        elif self.is_mod and not is_mod:
+            self.view.btn_save.configure(state='disabled')
+        self.is_mod = is_mod
 
     def cb_recipe_sel_change(self, entity: typing.Optional[Entity]):
         if self.is_mod:

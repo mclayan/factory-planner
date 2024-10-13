@@ -4,7 +4,7 @@ import typing
 
 from data import Resource, Recipe
 from main import MainConfig
-from . import Controller
+from . import Controller, AppGlobals
 from .entity_select import EntitySelectController
 from repository import RecipeRepository
 from .recipe_edit import RecipeEditController
@@ -19,14 +19,17 @@ class MainButtons(tk.Frame):
 
 
 class Application(tk.Frame):
+
     def __init__(self, repo: RecipeRepository, master=None):
         super().__init__(master)
+        if master is not None:
+            AppGlobals.set('validate_id_fmt', master.register(repo.validate_id_format))
         self.repository = repo
         self.nb_editor = ttk.Notebook(self)
-        self.resource_select = EntitySelectController(self.nb_editor, repo, entity_type=Resource,
-                                                      show_info=True)
-        self.recipe_select = EntitySelectController(self.nb_editor, repo, entity_type=Recipe, show_info=True)
-        self.recipe_editor = RecipeEditController(self.nb_editor, repo)
+        self.resource_select = EntitySelectController(self.nb_editor, 'resource_edit', None, repo, entity_type=Resource,
+                                                      show_info=True, is_readonly=False)
+        self.recipe_select = EntitySelectController(self.nb_editor, 'recipe_select', None, repo, entity_type=Recipe, show_info=True)
+        self.recipe_editor = RecipeEditController(self.nb_editor, 'recipe_edit', None, repo)
         self.nb_editor.add(self.resource_select.widget(), text='Resources', padding=(10, 10), sticky=tk.NSEW)
         self.nb_editor.add(self.recipe_select.widget(), text='Recipes (old)', padding=(10, 10))
         self.nb_editor.add(self.recipe_editor.widget(), text='Recipes', padding=(10, 10))

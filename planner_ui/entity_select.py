@@ -2,13 +2,15 @@ import copy
 import tkinter as tk
 import tkinter.ttk as ttk
 import typing
-from abc import ABC
+from abc import ABC, abstractmethod
 from collections.abc import Callable
+from doctest import master
+from tkinter import StringVar
 from typing import Optional
 
 from data import Entity, Recipe, Resource, ResourceQuantity, ResourceQuantities
 from repository import RecipeRepository
-from . import T, RootController
+from . import T, RootController, View, AppGlobals
 
 from .application import Controller
 
@@ -31,10 +33,12 @@ class RecipeInfoVars:
 
 class EntitySelectController(RootController[Entity]):
 
-    def __init__(self, master, repository: RecipeRepository, entity_type: type, label_text=None, show_info=False, is_readonly=True):
-        super().__init__(repository)
+    def __init__(self, master, view_name: str, parent: typing.Optional[Controller], repository: RecipeRepository,
+                 entity_type: type, label_text=None, show_info=False, is_readonly=True):
+        super().__init__(view_name, parent, repository)
         self.entity_type = entity_type
-        self.entity_source = self.repository.resources if issubclass(self.entity_type, Resource) else self.repository.recipes
+        self.entity_source = self.repository.resources if issubclass(self.entity_type,
+                                                                     Resource) else self.repository.recipes
         self.var_entities = tk.StringVar()
         self.repository = repository
         self.listeners_attr_change = []
@@ -44,26 +48,20 @@ class EntitySelectController(RootController[Entity]):
             label_text = 'Resource' if entity_type is Resource else 'Recipe'
 
         self.view = EntitySelect(master, self, label_text)
-        self.items = ([], [])
         self.update_entities()
         self.entity_attr_controller = None
+
         if show_info:
             if issubclass(entity_type, Resource):
-                self.entity_attr_controller = ResourceAttrController(self.view, is_readonly)
+                self.entity_attr_controller = ResourceAttrController(self.view, 'resources', self, is_readonly)
                 self.view.init_info(self.entity_attr_controller.widget())
             elif issubclass(entity_type, Recipe):
-                self.entity_attr_controller = RecipeAttrController(self.view, is_readonly)
+                self.entity_attr_controller = RecipeAttrController(self.view, 'recipes', self, is_readonly)
                 self.view.init_info(self.entity_attr_controller.widget())
 
     def update_entities(self):
-        self.items = ([], [])
         for e_id, entity in self.entity_source.items():
-            self.items[0].append(e_id)
-            if isinstance(entity, Entity):
-                self.items[1].append(entity.get_name())
-            else:
-                self.items[1].append(str(entity))
-        self.var_entities.set(self.items[1])
+            self.view.tv_entities.insert('', 'end', id=e_id, text=entity.name)
 
     def cb_select_entity(self, event):
         selected_entity = self.selected()
@@ -73,20 +71,22 @@ class EntitySelectController(RootController[Entity]):
             for listener in self.listeners_sel_change:
                 listener(self.selected())
 
-    def register_cb_attr_change(self, cb: Callable):
+    def cb_attr_change(self, is_mod):
+        for listener in self.listeners_attr_change:
+            listener(is_mod)
+
+    def register_cb_attr_change(self, cb: Callable[[bool], []]):
         self.listeners_attr_change.append(cb)
+        if self.entity_attr_controller is not None:
+            self.entity_attr_controller.register_attr_change(cb)
 
     def register_cb_sel_change(self, cb: Callable[[Optional[Entity]], []]):
         self.listeners_sel_change.append(cb)
 
-
     def selected(self) -> typing.Optional[Recipe | Resource]:
-        sel_ind = self.view.lb_entities.curselection()
-        if sel_ind is not None and len(sel_ind) > 0:
-            entity_id = self.items[0][sel_ind[0]]
-            return self.entity_source.get(entity_id, None)
-        else:
-            return None
+        sel_id = self.view.tv_entities.selection()
+        if len(sel_id) > 0:
+            return self.entity_source.get(sel_id[0])
 
     def write_entity(self, entity: Entity):
         orig_entity = self.selected()
@@ -105,7 +105,6 @@ class EntitySelectController(RootController[Entity]):
         if result:
             self.update_entities()
 
-
     def widget(self) -> 'EntitySelect':
         return self.view
 
@@ -113,43 +112,49 @@ class EntitySelectController(RootController[Entity]):
         return self.selected()
 
     def clear_display(self):
-        self.var_entities.set('')
+        items = self.view.tv_entities.get_children()
+        self.view.tv_entities.delete(*items)
 
-    def set_value(self, val: Optional[Entity|int]):
-        if isinstance(val, int):
-            sel_index = val
+    def set_value(self, val: Optional[Entity | str]):
+        if isinstance(val, str):
+            sel_id = val
         elif val is None:
-            self.view.lb_entities.select_clear(0, len(self.items) - 1)
+            self.view.tv_entities.selection_clear()
             return
         else:
-            sel_index = None
+            sel_id = None
             if type(val) != self.entity_type:
                 print(f'WARN: set_value called with type={type(val)} but controller manages type={self.entity_type}!')
                 return
-            else:
-                entity_id = val.id
-                i = 0
-                for e_id in self.items[0]:
-                    if e_id == entity_id:
-                        sel_index = i
-                        break
-                    i += 1
-        if sel_index is None:
+            elif val.id in self.entity_source:
+                sel_id = val.id
+        if sel_id is None:
             print(f'WARN: requested item "{val}" is not in repository!')
         else:
-            self.view.lb_entities.select_clear(0, len(self.items) - 1)
-            self.view.lb_entities.selection_set(sel_index)
-            self.view.lb_entities.see(sel_index)
+            self.view.tv_entities.selection_set(sel_id)
+            self.view.tv_entities.selection_set(sel_id)
+            self.view.tv_entities.see(sel_id)
+
+    def validate_id(self, entity_id: str) -> bool:
+        try:
+            print(f'{self}: validating id: "{entity_id}"')
+            if self.repository.validate_id_format(entity_id):
+                if entity_id != self.entity_attr_controller.entity.id:
+                    return entity_id not in self.entity_source
+            else:
+                return False
+        except Exception as e:
+            print(f'ERROR: {e}')
+            raise e
 
 
-class EntitySelect(ttk.Labelframe):
-    #TODO: change ListBox to TreeView
+class EntitySelect(ttk.Labelframe, View):
     def __init__(self, master, controller: EntitySelectController, label_text: str):
+        View.__init__(self, controller)
         super().__init__(master=master, text=label_text, padding=(4, 4))
-        self.controller = controller
-        self.lb_entities = tk.Listbox(self, listvariable=self.controller.var_entities)
-        self.lb_entities.bind('<<ListboxSelect>>', self.controller.cb_select_entity)
-        self.lb_entities.grid(row=0, column=0, sticky=tk.NSEW, padx=10, pady=10)
+        self.tv_entities = ttk.Treeview(self)
+        self.tv_entities.bind('<<TreeviewSelect>>', self.controller.cb_select_entity)
+        self.tv_entities.grid(row=0, column=0, sticky=tk.NSEW, padx=10, pady=10)
         self.info_view = None
 
     def init_info(self, info_view: tk.Widget):
@@ -159,28 +164,85 @@ class EntitySelect(ttk.Labelframe):
 
 class EntityInfo(Controller[T], ABC):
 
-    def __init__(self, is_readonly: bool):
+    def __init__(self, view_name: str, parent: typing.Optional[Controller], is_readonly: bool):
+        super().__init__(view_name, parent)
         self.read_only = is_readonly
+        self.listeners_attr_change = []
+        self.var_entity_id = StringVar()
+
+    def register_attr_change(self, cb: Callable[[bool], []]):
+        self.listeners_attr_change.append(cb)
+
+    def cb_attr_change(self, *args):
+        print(f'{self}: text changed: {args}')
+        for listener in self.listeners_attr_change:
+            listener()
+
+    @abstractmethod
+    def reset_flags(self):
+        pass
 
 
 class ResourceAttrController(EntityInfo[Resource]):
 
-    def __init__(self, master,is_readonly: bool, label_text=None):
-        super().__init__(is_readonly)
+    def __init__(self, master, view_name: str, parent: typing.Optional[Controller], is_readonly: bool, label_text=None):
+        super().__init__(view_name, parent, is_readonly)
         self.var_is_raw = tk.BooleanVar()
         self.var_name = tk.StringVar()
-        self.var_id = tk.StringVar()
         self.entity = None
         self.view = ResourceInfo(master, self, label_text)
+        self.listeners_attr_change = []
+        validation_cb = master.register(lambda args: self.cb_attr_change('id', args))
+        self.view.en_res_id.configure(validate='key', validatecommand=(validation_cb, '%P'))
+        self.is_valid_id = True
+        self.is_mod = False
 
     def update_entity(self, new_val: Resource):
         if isinstance(new_val, Resource):
+            self.clear_errs()
             self.entity = new_val
             self.var_is_raw.set(new_val.is_raw)
             self.var_name.set(new_val.name)
-            self.var_id.set(new_val.id)
+            self.var_entity_id.set(new_val.id)
         else:
             print(f'WARN: {self}: invalid value for this type: {new_val}')
+
+    def register_attr_change(self, cb: Callable):
+        self.listeners_attr_change.append(cb)
+
+    def cb_attr_change(self, src: typing.Literal['id', 'name', 'ir'], *args):
+        differs = False
+        if src == 'id':
+            differs = self.cb_id_val_change(args[0])
+        elif src == 'name':
+            differs = self.entity.name != self.var_name.get()
+        elif src == 'ir':
+            differs = self.entity.is_raw != self.var_is_raw.get()
+        if not differs:
+            differs = (self.entity.name == self.var_name.get()
+                       and self.entity.id == self.var_entity_id.get()
+                       and self.entity.is_raw == self.var_is_raw.get())
+        for listener in self.listeners_attr_change:
+            listener(differs)
+
+        return True
+
+    def cb_id_val_change(self, new_val) -> bool:
+        if new_val != self.entity.id:
+            if not RecipeRepository.validate_id_format(new_val):
+                if self.is_valid_id:
+                    self.view.en_res_id['bg'] = '#ff7777'
+                    self.is_valid_id = False
+            else:
+                if not self.is_valid_id:
+                    self.is_valid_id = True
+                    self.view.en_res_id['bg'] = self.view.col_en_orig
+            return True
+        else:
+            if not self.is_valid_id:
+                self.is_valid_id = True
+                self.view.en_res_id['bg'] = self.view.col_en_orig
+            return False
 
     def widget(self) -> tk.Widget:
         return self.view
@@ -191,10 +253,16 @@ class ResourceAttrController(EntityInfo[Resource]):
     def set_value(self, val: Resource):
         self.update_entity(val)
 
+    def reset_flags(self):
+        if not self.is_valid_id:
+            self.is_valid_id = True
+            self.view.en_res_id['bg'] = self.view.col_en_orig
 
-class ResourceInfo(ttk.Labelframe):
+
+class ResourceInfo(ttk.Labelframe, View):
 
     def __init__(self, master, controller: ResourceAttrController, label_text=None):
+        View.__init__(self, controller)
         super().__init__(master, text=label_text if label_text is not None else 'Resource Data')
         row = 0
 
@@ -208,7 +276,7 @@ class ResourceInfo(ttk.Labelframe):
         self.lbl_res_id = tk.Label(self, text='Recipe ID')
         self.lbl_res_id.grid(row=row, column=0, sticky=tk.W)
 
-        self.en_res_id = tk.Entry(self, textvariable=controller.var_id)
+        self.en_res_id = tk.Entry(self, textvariable=controller.var_entity_id)
         self.en_res_id.grid(row=row, column=1, sticky=tk.EW)
         row += 1
 
@@ -219,6 +287,8 @@ class ResourceInfo(ttk.Labelframe):
         if controller.read_only:
             self.set_readonly(True)
 
+        self.col_en_orig = self.en_res_id['bg']
+
     def set_readonly(self, ro: bool):
         self.en_res_name_val.configure(state='readonly' if ro else 'normal')
         self.en_res_id.configure(state='readonly' if ro else 'normal')
@@ -227,8 +297,8 @@ class ResourceInfo(ttk.Labelframe):
 
 class RecipeAttrController(EntityInfo[Recipe]):
 
-    def __init__(self, master, is_readonly: bool, label_text=None):
-        super().__init__(is_readonly)
+    def __init__(self, master, name: str, parent: Controller, is_readonly: bool, label_text=None):
+        super().__init__(name, parent, is_readonly)
         self.is_mod = False
         self.var_name = tk.StringVar()
         self.var_id = tk.StringVar()
@@ -237,6 +307,15 @@ class RecipeAttrController(EntityInfo[Recipe]):
         self.entity: typing.Optional[Recipe] = None
         self.entity_id: typing.Optional[str] = None
         self.view = RecipeInfo(master, self, label_text)
+        validation_cb_id = master.register(lambda args: self.cb_attr_change('id', args))
+        validation_cb_name = master.register(lambda args: self.cb_attr_change('name', args))
+        validation_cb_src_name = master.register(lambda args: self.cb_attr_change('sname', args))
+        validation_cb_ctime = master.register(lambda args: self.cb_attr_change('ctime', args))
+        self.view.en_rec_id.configure(validate='key', validatecommand=(validation_cb_id, '%P'))
+        self.view.en_res_name_val.configure(validate='key', validatecommand=(validation_cb_name, '%P'))
+        self.view.en_source_name.configure(validate='key', validatecommand=(validation_cb_src_name, '%P'))
+        self.view.en_cycle_time.configure(validate='key', validatecommand=(validation_cb_ctime, '%P'))
+        self.is_valid_id = True
 
     def update_entity(self, new_val: Recipe):
         if isinstance(new_val, Recipe):
@@ -266,6 +345,43 @@ class RecipeAttrController(EntityInfo[Recipe]):
             self.entity.cycle_time = ct_new
             self.is_mod = True
 
+    def cb_attr_change(self, src: typing.Literal['id', 'name', 'sname', 'ctime'], *args):
+        differs = False
+        if src == 'id':
+            differs = self.cb_id_val_change(args[0])
+        elif src == 'name':
+            differs = self.entity.name != args[0]
+        elif src == 'sname':
+            differs = self.entity.source_name != args[0]
+        elif src == 'ctime':
+            differs = self.entity.cycle_time != float(args[0])
+        if not differs:
+            differs = (self.entity.name == self.var_name.get()
+                       and self.entity.id == self.var_entity_id.get()
+                       and self.entity.source_name == self.var_source_name.get()
+                       and self.entity.cycle_time == self.var_cycle_time.get())
+        for listener in self.listeners_attr_change:
+            listener(differs)
+
+        return True
+
+    def cb_id_val_change(self, new_val) -> bool:
+        if new_val != self.entity.id:
+            if not RecipeRepository.validate_id_format(new_val):
+                if self.is_valid_id:
+                    self.view.en_rec_id['bg'] = '#ff7777'
+                    self.is_valid_id = False
+            else:
+                if not self.is_valid_id:
+                    self.is_valid_id = True
+                    self.view.en_rec_id['bg'] = self.view.col_en_orig
+            return True
+        else:
+            if not self.is_valid_id:
+                self.is_valid_id = True
+                self.view.en_rec_id['bg'] = self.view.col_en_orig
+            return False
+
     def widget(self) -> ttk.Labelframe:
         return self.view
 
@@ -275,10 +391,14 @@ class RecipeAttrController(EntityInfo[Recipe]):
     def set_value(self, val: Recipe):
         self.update_entity(val)
 
+    def reset_flags(self):
+        self.is_valid_id = True
 
-class RecipeInfo(ttk.Labelframe):
+
+class RecipeInfo(ttk.Labelframe, View):
 
     def __init__(self, master, controller: RecipeAttrController, label_text=None):
+        View.__init__(self, controller)
         super().__init__(master, text=label_text if label_text is not None else 'Recipe Data')
         row = 0
 
@@ -310,9 +430,10 @@ class RecipeInfo(ttk.Labelframe):
         self.en_cycle_time.grid(row=row, column=1, sticky=tk.EW)
         row += 1
 
-
         if controller.read_only:
             self.set_readonly(True)
+
+        self.col_en_orig = self.en_rec_id['bg']
 
     def set_readonly(self, ro: bool):
         self.en_res_name_val.configure(state='readonly' if ro else 'normal')
@@ -323,7 +444,8 @@ class RecipeInfo(ttk.Labelframe):
 
 class ResQtSelectController(Controller[tuple[ResourceQuantity, float]]):
 
-    def __init__(self, master, c0_name: str):
+    def __init__(self, master, view_name: str, parent: typing.Optional[Controller], c0_name: str):
+        super().__init__(view_name, parent)
         self.res_qt: Optional[ResourceQuantities] = None
         self.cycle_time = None
         self.view = ResQtSelect(master, self, c0_name)
@@ -337,7 +459,9 @@ class ResQtSelectController(Controller[tuple[ResourceQuantity, float]]):
             rpm_factor = 60.0 / self.cycle_time
             for res_qt in self.res_qt.values():
                 self.view.tv_res_quantities.insert('', 'end', iid=res_qt.resource.id,
-                                                   values=(res_qt.resource.name, res_qt.quantity, res_qt.quantity * rpm_factor))
+                                                   values=(
+                                                       res_qt.resource.name, res_qt.quantity,
+                                                       res_qt.quantity * rpm_factor))
 
     def widget(self) -> tk.Widget:
         return self.view
@@ -361,9 +485,11 @@ class ResQtSelectController(Controller[tuple[ResourceQuantity, float]]):
         for listener in self.listeners_sel_change:
             listener(self.view.tv_res_quantities.selection())
 
-class ResQtSelect(ttk.Frame):
+
+class ResQtSelect(ttk.Frame, View):
 
     def __init__(self, master, controller: ResQtSelectController, c0_name: str):
+        View.__init__(self, controller)
         super().__init__(master)
 
         row = 0
