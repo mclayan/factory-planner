@@ -4,7 +4,7 @@ from argparse import ArgumentError
 from datetime import timedelta
 from typing import Self
 
-from data import Resource, Recipe, ResourceQuantity
+from data import Resource, Recipe, ResourceQuantity, Entity
 
 
 class DuplicateKeyError(Exception):
@@ -85,6 +85,57 @@ class RecipeRepository:
                 results.append(recipe)
 
         return results
+
+    def update_recipe(self, recipe: Recipe):
+        old = self.recipe(recipe.id)
+        if old is None:
+            self.add_recipe(recipe, False)
+        elif not old.is_equal(recipe):
+            for resource in list(recipe.products.values()) + list( recipe.resources.values()):
+                if resource not in self.resources:
+                    raise ArgumentError(resource, 'resource does not exist in repository!')
+            self.recipes[recipe.id] = recipe
+            self.mod_recipes = True
+
+    def update_entity(self, entity_id: str, entity: Entity) -> bool:
+        if isinstance(entity, Resource):
+            old = self.resources.get(entity_id, None)
+            if old is None:
+                print(f'repository: no such resource with id={entity_id}')
+                return False
+            if old.id != entity.id:
+                if entity.id not in self.resources:
+                    self.add_resource(entity, False)
+                    self.resources.pop(entity_id)
+                    self.mod_resources = True
+                else:
+                    print(f'Cannot change resource_id from {entity_id} to {entity.id}: id exists ')
+                    return False
+            else:
+                if old.name != entity.name or old.is_raw != entity.is_raw:
+                    self.resources[entity_id] = entity
+                    self.mod_resources = True
+        elif isinstance(entity, Recipe):
+            old = self.recipes.get(entity_id, None)
+            if old is None:
+                print(f'repository: no such recipe with id={entity_id}')
+                return False
+            if old.id != entity.id:
+                if entity.id not in self.recipes:
+                    self.add_recipe(entity, False)
+                    self.recipes.pop(entity_id)
+                    self.mod_recipes = True
+                else:
+                    print(f'Cannot change recipe_id from {entity_id} to {entity.id}: id exists')
+                    return False
+            else:
+                try:
+                    self.update_recipe(entity)
+                except ArgumentError as e:
+                    print(f'Could not update recipe {entity}: {e}')
+                    return False
+        return True
+
 
 
 

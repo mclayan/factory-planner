@@ -7,6 +7,7 @@ from main import MainConfig
 from . import Controller
 from .entity_select import EntitySelectController
 from repository import RecipeRepository
+from .recipe_edit import RecipeEditController
 
 
 class MainButtons(tk.Frame):
@@ -22,11 +23,13 @@ class Application(tk.Frame):
         super().__init__(master)
         self.repository = repo
         self.nb_editor = ttk.Notebook(self)
-        self.resource_select = EntitySelectController(self.nb_editor, repo.resources, entity_type=Resource,
+        self.resource_select = EntitySelectController(self.nb_editor, repo, entity_type=Resource,
                                                       show_info=True)
-        self.recipe_select = EntitySelectController(self.nb_editor, repo.recipes, entity_type=Recipe, show_info=True)
+        self.recipe_select = EntitySelectController(self.nb_editor, repo, entity_type=Recipe, show_info=True)
+        self.recipe_editor = RecipeEditController(self.nb_editor, repo)
         self.nb_editor.add(self.resource_select.widget(), text='Resources', padding=(10, 10), sticky=tk.NSEW)
-        self.nb_editor.add(self.recipe_select.widget(), text='Recipes', padding=(10, 10))
+        self.nb_editor.add(self.recipe_select.widget(), text='Recipes (old)', padding=(10, 10))
+        self.nb_editor.add(self.recipe_editor.widget(), text='Recipes', padding=(10, 10))
         self.nb_editor.grid(row=0, column=0, padx=10, pady=10)
         self.grid()
 

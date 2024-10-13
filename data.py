@@ -1,3 +1,4 @@
+import copy
 import math
 import typing
 from abc import ABC
@@ -49,11 +50,19 @@ class ResourceQuantity:
     def __str__(self):
         return f'{self.quantity:.1f}x({self.resource.name})'
 
+    def __copy__(self) -> typing.Self:
+        return ResourceQuantity(self.resource, self.quantity)
+
     def as_dict(self) -> dict:
         return {
             'id': self.resource.id,
             'quantity': self.quantity
         }
+
+    def is_equal(self, other):
+        if not isinstance(other, ResourceQuantity):
+            return False
+        return self.resource == other.resource and self.quantity == other.quantity
 
 
 class ResourceQuantities:
@@ -77,6 +86,9 @@ class ResourceQuantities:
     def pairs(self):
         return self._inner.items()
 
+    def values(self):
+        return self._inner.values()
+
     def __getitem__(self, item):
         return self._inner.__getitem__(item)
 
@@ -91,6 +103,29 @@ class ResourceQuantities:
 
     def __len__(self):
         return self._inner.__len__()
+
+    def __copy__(self):
+        cp = super().__new__(ResourceQuantities)
+        cp._inner = copy.copy(self._inner)
+        return cp
+
+    def is_equal(self, other):
+        if not isinstance(other, ResourceQuantities):
+            return False
+        if len(self._inner.items()) != len(other._inner.items()):
+            return False
+
+        for res_id, qt in self._inner.items():
+            other_qt = other._inner.get(res_id, None)
+            if other_qt is None or not other_qt.is_equal(qt):
+                return False
+        return True
+
+    def copy_shallow(self) -> typing.Self:
+        copied = ResourceQuantities([])
+        for res_qt in self._inner.values():
+            copied.add(ResourceQuantity(res_qt.resource, res_qt.quantity))
+        return copied
 
 
 class ProductionResources:
@@ -173,6 +208,17 @@ class Recipe(Entity):
         return RecipeComponents(requirements, products)
 
 
+    def __copy__(self) -> typing.Self:
+        cp = super().__new__(Recipe)
+        cp.id = self.id
+        cp.name = self.name
+        cp.cycle_time = self.cycle_time
+        cp.source_name = self.source_name
+        cp.resources = copy.copy(self.resources)
+        cp.products = copy.copy(self.products)
+
+        return cp
+
     def __str__(self) -> str:
         result = f'Recipe "{self.name}": ['
         r_count = 0
@@ -241,6 +287,17 @@ class Recipe(Entity):
     def scale_factor_for_product(self, product: Resource, target_rpm: float) -> float:
         base_production = self.production(product)
         return target_rpm / base_production.base_rpm
+
+    def is_equal(self, other) -> bool:
+        if not isinstance(other, Recipe):
+            return False
+        if self.source_name != other.source_name \
+            or self.name != other.name \
+            or self.id != other.id:
+            return False
+
+        return self.resources.is_equal(other.resources)
+
 
 
 class ScaledRecipe:

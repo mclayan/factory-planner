@@ -38,6 +38,7 @@ def _main():
                         const='gui')
     parser.add_argument('--cli', dest='op_mode', help='Use the command line interface.', action='store_const',
                         const='cli')
+    parser.add_argument('-R', '--read-only', dest='is_readonly', help='Do not save changes when exiting', action='store_true')
     args = parser.parse_args()
 
     recipes_file = f'{args.data_dir}/{args.recipes_name}'
@@ -59,7 +60,8 @@ def _main():
         print(f'Fatal error: {e}. Dumping repository.')
         raise e
     finally:
-        repository.save_repository(repo, config.resources_file, config.recipes_file)
+        if not args.is_readonly:
+            repository.save_repository(repo, config.resources_file, config.recipes_file)
 
 
 if __name__ == '__main__':
