@@ -7,6 +7,7 @@ from main import MainConfig
 from . import Controller, AppGlobals
 from .entity_select import EntitySelectController
 from repository import RecipeRepository
+from .planner import Planner, PlannerController
 from .recipe_edit import RecipeEditController
 
 
@@ -28,16 +29,20 @@ class Application(tk.Frame):
         self.nb_editor = ttk.Notebook(self)
         self.resource_select = EntitySelectController(self.nb_editor, 'resource_edit', None, repo, entity_type=Resource,
                                                       show_info=True, is_readonly=False)
-        self.recipe_select = EntitySelectController(self.nb_editor, 'recipe_select', None, repo, entity_type=Recipe, show_info=True)
         self.recipe_editor = RecipeEditController(self.nb_editor, 'recipe_edit', None, repo)
+        self.planner = PlannerController(self.nb_editor, 'planner', None, repo)
+
         self.nb_editor.add(self.resource_select.widget(), text='Resources', padding=(10, 10), sticky=tk.NSEW)
-        self.nb_editor.add(self.recipe_select.widget(), text='Recipes (old)', padding=(10, 10))
         self.nb_editor.add(self.recipe_editor.widget(), text='Recipes', padding=(10, 10))
-        self.nb_editor.grid(row=0, column=0, padx=10, pady=10)
-        self.grid()
+        self.nb_editor.add(self.planner.widget(), text='Planner', padding=(10, 10))
+        self.nb_editor.grid(row=0, column=0, padx=10, pady=10, sticky=tk.NSEW)
+        self.grid(sticky=tk.NSEW)
 
         self.main_buttons = MainButtons(self)
-        self.main_buttons.grid(row=1, column=0, columnspan=2, sticky=tk.NSEW)
+        self.main_buttons.grid(row=1, column=0, columnspan=2, sticky=tk.NSEW, padx=10, pady=10)
+        
+        self.columnconfigure(index=0, weight=1)
+        self.rowconfigure(index=0, weight=1)
 
         # self.pack()
 
@@ -55,6 +60,8 @@ class Application(tk.Frame):
 
 def main(config: MainConfig):
     a = tk.Tk()
+    a.columnconfigure(0, weight=1)
+    a.rowconfigure(0, weight=1)
     app = Application(config.repository, master=a)
     app.master.title('Sample application')
     a.mainloop()

@@ -89,6 +89,9 @@ class ResourceQuantities:
     def values(self):
         return self._inner.values()
 
+    def keys(self):
+        return self._inner.keys()
+
     def __getitem__(self, item):
         return self._inner.__getitem__(item)
 

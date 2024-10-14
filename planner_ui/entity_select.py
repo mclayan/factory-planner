@@ -34,8 +34,9 @@ class RecipeInfoVars:
 class EntitySelectController(RootController[Entity]):
 
     def __init__(self, master, view_name: str, parent: typing.Optional[Controller], repository: RecipeRepository,
-                 entity_type: type, label_text=None, show_info=False, is_readonly=True):
+                 entity_type: type, label_text=None, show_info=False, is_readonly=True, id_filter: typing.Optional[list[str]]=None):
         super().__init__(view_name, parent, repository)
+        self.id_filter = id_filter
         self.entity_type = entity_type
         self.entity_source = self.repository.resources if issubclass(self.entity_type,
                                                                      Resource) else self.repository.recipes
@@ -61,6 +62,9 @@ class EntitySelectController(RootController[Entity]):
 
     def update_entities(self):
         for e_id, entity in self.entity_source.items():
+            if self.id_filter is not None:
+                if not e_id in self.id_filter:
+                    continue
             self.view.tv_entities.insert('', 'end', id=e_id, text=entity.name)
 
     def cb_select_entity(self, event):
@@ -199,7 +203,6 @@ class ResourceAttrController(EntityInfo[Resource]):
 
     def update_entity(self, new_val: Resource):
         if isinstance(new_val, Resource):
-            self.clear_errs()
             self.entity = new_val
             self.var_is_raw.set(new_val.is_raw)
             self.var_name.set(new_val.name)
