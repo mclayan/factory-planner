@@ -87,3 +87,11 @@ class View(ABC):
 
     def __repr__(self):
         return f'{type(self).__name__}[{self.view_id.str_view()}]'
+
+def add_unimplemented_label(master):
+    lbl_warn_stub = tk.Label(master, text='Info: at the moment modifications will have no affect.')
+    font_lbl = tk.font.Font(font=lbl_warn_stub['font'])
+    font_lbl['slant'] = 'italic'
+    font_lbl['size'] = int(font_lbl['size'] * 1.2)
+    lbl_warn_stub.configure(font=font_lbl, background='#ffff98')
+    lbl_warn_stub.grid(row=0, column=0, columnspan=2, sticky=tk.NSEW)

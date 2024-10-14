@@ -4,7 +4,7 @@ import typing
 
 from data import Resource, Recipe
 from main import MainConfig
-from . import Controller, AppGlobals
+from . import Controller, AppGlobals, add_unimplemented_label
 from .entity_select import EntitySelectController
 from repository import RecipeRepository
 from .planner import Planner, PlannerController
@@ -27,12 +27,18 @@ class Application(tk.Frame):
             AppGlobals.set('validate_id_fmt', master.register(repo.validate_id_format))
         self.repository = repo
         self.nb_editor = ttk.Notebook(self)
-        self.resource_select = EntitySelectController(self.nb_editor, 'resource_edit', None, repo, entity_type=Resource,
+        frame_res_edit = tk.Frame(self)
+        self.resource_select = EntitySelectController(frame_res_edit, 'resource_edit', None, repo, entity_type=Resource,
                                                       show_info=True, is_readonly=False)
+        add_unimplemented_label(frame_res_edit)
+        self.resource_select.widget().grid(row=1, column=0, sticky=tk.NSEW)
+        frame_res_edit.rowconfigure(1, weight=1)
+        frame_res_edit.columnconfigure(0, weight=1)
+
         self.recipe_editor = RecipeEditController(self.nb_editor, 'recipe_edit', None, repo)
         self.planner = PlannerController(self.nb_editor, 'planner', None, repo)
 
-        self.nb_editor.add(self.resource_select.widget(), text='Resources', padding=(10, 10), sticky=tk.NSEW)
+        self.nb_editor.add(frame_res_edit, text='Resources', padding=(10, 10), sticky=tk.NSEW)
         self.nb_editor.add(self.recipe_editor.widget(), text='Recipes', padding=(10, 10))
         self.nb_editor.add(self.planner.widget(), text='Planner', padding=(10, 10))
         self.nb_editor.grid(row=0, column=0, padx=10, pady=10, sticky=tk.NSEW)
@@ -43,8 +49,6 @@ class Application(tk.Frame):
         
         self.columnconfigure(index=0, weight=1)
         self.rowconfigure(index=0, weight=1)
-
-        # self.pack()
 
     def select_entity(self):
         if self.sub_view is not None:
@@ -59,9 +63,9 @@ class Application(tk.Frame):
 
 
 def main(config: MainConfig):
-    a = tk.Tk()
-    a.columnconfigure(0, weight=1)
-    a.rowconfigure(0, weight=1)
-    app = Application(config.repository, master=a)
-    app.master.title('Sample application')
-    a.mainloop()
+    root = tk.Tk()
+    root.columnconfigure(0, weight=1)
+    root.rowconfigure(0, weight=1)
+    app = Application(config.repository, master=root)
+    app.master.title(f'Factory Planner {MainConfig.APP_VERSION}')
+    root.mainloop()

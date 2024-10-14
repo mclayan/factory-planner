@@ -1,13 +1,59 @@
 ## Usage
 
 ```sh
-$ python main.py [-h] [-r NAME] [-c NAME] [DATA_DIR]
+$ python main.py [-h] [-r NAME] [-c NAME] [--gui] [--cli] [-R] [DATA_DIR]
 ```
 
 Where `DATA_DIR` is the directory containing `resources.json` and `recipes.json`. This parameter defaults to `./data`, 
 so it is optional if the default data directory is within the current working dir.
 
-## Preface: Entity Selector (`ENTITY_SEL`)
+## Using the GUI
+
+The GUI is a new feature as of v2 of the application and allows viewing resources, recipes and dependency graphs in a
+brand-new, feature-reach and modern GUI based on the innovative Tk framework.
+
+In order to start the application in GUI mode, the parameter `--gui` must be set when executing the main script:
+
+### Planner
+
+The planner is the graphical representation of the _Dependency Graph_ generated for a specific recipe. It allows users
+to select a recipe and product at a desired output RPM and calculate a production chain of required products down to raw 
+resources. In contrast to a dependency tree all dependencies are aggregated and scaled to an integer factor, which means
+it may be translated as-is to stations.
+
+Example:
+
+Consider resources A, B, C. The dependency tree for A is:
+
+```text
+1x A (2*B + 1*C -> 1*A)
+├── 0.5x B ( 1*C -> 4*B)
+│   └── 0.125x C ( mining C at 1*C)
+└── 1x C
+    └── 1x C ( mining C at 1*C)
+```
+
+As B can only be produced at a rate of 4 per cycle, the requirement for A is `0.5x Recipe('B')`. Aggregated, we need
+the following recipes:
+```
+  1.000x Recipe('A')
++ 0.500x Recipe('B')
++ 1.125x Recipe('C')
+```
+which is not possible unless the recipes are underclocked.
+
+
+```sh
+$ python main.py --gui
+```
+
+## Using the CLI
+
+The CLI is as of v2.0.0 the only option to add resources or recipes. It is a basic interactive command-line mode and
+currently the default mode when starting the application without other mode parameters. It may also be started by
+explicitly setting the parameter `--cli`.
+
+### Preface: Entity Selector (`ENTITY_SEL`)
 Whenever specifying an existing resource or recipe it is possible to select the right entity either by name or by id.
 In these cases, the command requires a value `ENTITY_SEL`, which represent either based on its form:
   * `@<ENTITY_ID>` means the entity is selected by matching its ID with the value after `@`
@@ -25,7 +71,7 @@ Selecting the recipe "Smart Plating" by its name `"Smart Plating"`. The `"` are 
 => <some_command> -p "Smart Plating"
 ```
 
-## Adding Resources: `add-resource`
+### Adding Resources: `add-resource`
 
 ```sh
 usage: add-resource [-h] [-i NAME] [-r] NAME
@@ -58,7 +104,7 @@ To add a raw resource:
 => add-resource "Iron Ore" -r
 ```
 
-## Adding Recipes: `add-recipe`
+### Adding Recipes: `add-recipe`
 
 ```sh
 usage: add-recipe [-h] [-i NAME] -t DURATION [-p PRODUCTS [PRODUCTS ...]]
@@ -108,7 +154,7 @@ A more complex recipe with multiple products and resources:
 => add-recipe "Alumina Solution" -r "Bauxite" 12 -r "Water" 18 -p "Alumina Solution" 12 -p "Silica" 5 -t "00:00:06"
 ```
 
-## Calculating Dependency Trees: `tree`
+### Calculating Dependency Trees: `tree`
 
 To calculate a dependency tree and the total quantity of base resources, use the `tree` command. It is possible to either
 select a specific recipe for the end product or specify the end product and automatically select a recipe. All intermediate
@@ -219,7 +265,7 @@ Recipe: Iron Rod (0.7) => 1.0x "Iron Rod": [15.0x(Iron Ingot) -> 15.0x(Iron Rod)
 Resource: Iron Ore (55.0) => 1.0x "Iron Ore": [ -> 1.0x(Iron Ore) p.m.]  ==> 55.0 p.m.
 ```
 
-## Listing Registered Entities: `ls`
+### Listing Registered Entities: `ls`
 
 ```text
 usage: ls [-h] [-p PRODUCT] [-r RECIPE] [TYPE]

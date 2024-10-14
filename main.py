@@ -8,7 +8,9 @@ import repository
 from repository import RecipeRepository
 
 
+
 class MainConfig:
+    APP_VERSION = '2.0.0'
 
     def __init__(self, resources_file, recipes_file, repo):
         self.resources_file = resources_file

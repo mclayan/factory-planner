@@ -159,6 +159,9 @@ class EntitySelect(ttk.Labelframe, View):
         self.tv_entities = ttk.Treeview(self)
         self.tv_entities.bind('<<TreeviewSelect>>', self.controller.cb_select_entity)
         self.tv_entities.grid(row=0, column=0, sticky=tk.NSEW, padx=10, pady=10)
+        self.columnconfigure(0, weight=1)
+        self.columnconfigure(1, weight=1)
+        self.rowconfigure(0, weight=1)
         self.info_view = None
 
     def init_info(self, info_view: tk.Widget):
@@ -178,7 +181,7 @@ class EntityInfo(Controller[T], ABC):
         self.listeners_attr_change.append(cb)
 
     def cb_attr_change(self, *args):
-        print(f'{self}: text changed: {args}')
+        #print(f'{self}: text changed: {args}')
         for listener in self.listeners_attr_change:
             listener()
 
@@ -484,7 +487,7 @@ class ResQtSelectController(Controller[tuple[ResourceQuantity, float]]):
         self.listeners_sel_change.append(cb)
 
     def cb_selection_change(self, event):
-        print(f'{self}: selected changed to {self.view.tv_res_quantities.selection()} (event={event})')
+        #print(f'{self}: selected changed to {self.view.tv_res_quantities.selection()} (event={event})')
         for listener in self.listeners_sel_change:
             listener(self.view.tv_res_quantities.selection())
 
@@ -501,4 +504,6 @@ class ResQtSelect(ttk.Frame, View):
         self.tv_res_quantities.heading('res_name', text=c0_name)
         self.tv_res_quantities.heading('quantity', text='Quantity')
         self.tv_res_quantities.heading('rpm', text='RPM')
-        self.tv_res_quantities.grid(row=row, column=0)
+        self.tv_res_quantities.grid(row=row, column=0, sticky=tk.NSEW)
+        self.rowconfigure(0, weight=1)
+        self.columnconfigure(0, weight=1)
