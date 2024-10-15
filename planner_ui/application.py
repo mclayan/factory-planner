@@ -59,8 +59,10 @@ class Application(tk.Frame):
 
 def main(config: MainConfig):
     root = tk.Tk()
+    style = ttk.Style()
+    style.theme_use('classic')
     root.columnconfigure(0, weight=1)
     root.rowconfigure(0, weight=1)
-    app = Application(config.repository, master=root)
+    app = Application(config.repository, master=style.master)
     app.master.title(f'Factory Planner {MainConfig.APP_VERSION}')
     root.mainloop()
