@@ -12,10 +12,11 @@ from repository import RecipeRepository
 class MainConfig:
     APP_VERSION = '2.0.0'
 
-    def __init__(self, resources_file, recipes_file, repo):
+    def __init__(self, resources_file, recipes_file, repo, theme):
         self.resources_file = resources_file
         self.recipes_file = recipes_file
         self.repository = repo
+        self.theme = theme
 
 
 def _cli(config: MainConfig):
@@ -41,6 +42,7 @@ def _main():
     parser.add_argument('--cli', dest='op_mode', help='Use the command line interface.', action='store_const',
                         const='cli')
     parser.add_argument('-R', '--read-only', dest='is_readonly', help='Do not save changes when exiting', action='store_true')
+    parser.add_argument('--theme', dest='gui_theme', help='GUI theme to use. Defaults to \'classic\'.', default='classic')
     args = parser.parse_args()
 
     recipes_file = f'{args.data_dir}/{args.recipes_name}'
@@ -50,7 +52,7 @@ def _main():
     print(f'  resources: {resources_file}')
 
     repo = repository.load_repository(resources_file, recipes_file)
-    config = MainConfig(resources_file, recipes_file, repo)
+    config = MainConfig(resources_file, recipes_file, repo, args.gui_theme)
 
     op_mode = args.op_mode
     try:

@@ -60,7 +60,8 @@ class Application(tk.Frame):
 def main(config: MainConfig):
     root = tk.Tk()
     style = ttk.Style()
-    style.theme_use('classic')
+    if config.theme in style.theme_names():
+        style.theme_use(config.theme)
     root.columnconfigure(0, weight=1)
     root.rowconfigure(0, weight=1)
     app = Application(config.repository, master=style.master)
