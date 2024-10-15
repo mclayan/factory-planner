@@ -8,14 +8,20 @@ from typing import Self
 from data import Resource, Recipe, ResourceQuantity, Entity
 
 
-class DuplicateKeyError(Exception):
+class DuplicateKeyError(BaseException):
 
     def __init__(self, msg: str):
         super().__init__(msg)
 
+class InvalidDataError(BaseException):
+
+    def __init__(self, msg: str, part: str):
+        super().__init__(msg)
+        self.part = part
+
 
 class RecipeRepository:
-    __RX_ID = re.compile('([a-z]+([a-z0-9]|_)*)')
+    __RX_ID = re.compile('([a-z0-9]+([a-z0-9]|_)*)')
 
     __slots__=('resources', 'recipes', 'mod_recipes', 'mod_resources')
 
@@ -26,7 +32,14 @@ class RecipeRepository:
         self.mod_resources = False
 
     def add_resource(self, resource: Resource, is_load=False):
+        if len(resource.name) == 0:
+            raise InvalidDataError(f'resource name must not be empty', 'name')
+        if len(resource.id) == 0:
+            raise InvalidDataError(f'resource id must not be empty', 'id')
+
         if self.resources.get(resource.id, None) is None:
+            if not self.validate_id_format(resource.id):
+                raise InvalidDataError(f'invalid resource id: "{resource.id}"', 'id')
             self.resources[resource.id] = resource
             if not is_load:
                 self.mod_resources = True
@@ -34,7 +47,14 @@ class RecipeRepository:
             raise DuplicateKeyError(f'duplicate resource id: {resource.id}')
 
     def add_recipe(self, recipe: Recipe, is_load=False):
+        if len(recipe.name) == 0:
+            raise InvalidDataError(f'recipe name must not be empty')
+        if len(recipe.id) == 0:
+            raise InvalidDataError(f'recipe id must not be empty')
+
         if self.recipes.get(recipe.id, None) is None:
+            if not self.validate_id_format(recipe.id):
+                raise InvalidDataError(f'invalid recipe id: "{recipe.id}"')
             self.recipes[recipe.id] = recipe
             if not is_load:
                 self.mod_recipes = True
@@ -61,6 +81,14 @@ class RecipeRepository:
         if 'source_name' in d:
             recipe.source_name = d['source_name']
         self.add_recipe(recipe, True)
+
+    def delete_resource(self, resource_id: str) -> bool:
+        if resource_id in self.resources:
+            self.resources.pop(resource_id)
+            self.mod_resources = True
+            return True
+        else:
+            return False
 
     def resource(self, res_id: str) -> typing.Optional[Resource]:
         return self.resources.get(res_id, None)

@@ -9,6 +9,7 @@ from .entity_select import EntitySelectController
 from repository import RecipeRepository
 from .planner import Planner, PlannerController
 from .recipe_edit import RecipeEditController
+from .resource_edit import ResourceEditController
 
 
 class MainButtons(tk.Frame):
@@ -27,18 +28,12 @@ class Application(tk.Frame):
             AppGlobals.set('validate_id_fmt', master.register(repo.validate_id_format))
         self.repository = repo
         self.nb_editor = ttk.Notebook(self)
-        frame_res_edit = tk.Frame(self)
-        self.resource_select = EntitySelectController(frame_res_edit, 'resource_edit', None, repo, entity_type=Resource,
-                                                      show_info=True, is_readonly=False)
-        add_unimplemented_label(frame_res_edit)
-        self.resource_select.widget().grid(row=1, column=0, sticky=tk.NSEW)
-        frame_res_edit.rowconfigure(1, weight=1)
-        frame_res_edit.columnconfigure(0, weight=1)
+        self.resource_edit = ResourceEditController(self.nb_editor, 'res_edit', None, repo)
 
         self.recipe_editor = RecipeEditController(self.nb_editor, 'recipe_edit', None, repo)
         self.planner = PlannerController(self.nb_editor, 'planner', None, repo)
 
-        self.nb_editor.add(frame_res_edit, text='Resources', padding=(10, 10), sticky=tk.NSEW)
+        self.nb_editor.add(self.resource_edit.widget(), text='Resources', padding=(10, 10), sticky=tk.NSEW)
         self.nb_editor.add(self.recipe_editor.widget(), text='Recipes', padding=(10, 10))
         self.nb_editor.add(self.planner.widget(), text='Planner', padding=(10, 10))
         self.nb_editor.grid(row=0, column=0, padx=10, pady=10, sticky=tk.NSEW)

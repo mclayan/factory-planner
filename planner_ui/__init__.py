@@ -4,6 +4,8 @@ import typing
 
 __all__ = ['Controller', 'RootController', 'T']
 
+from collections.abc import Callable
+
 from repository import RecipeRepository
 
 T = typing.TypeVar('T')
@@ -46,6 +48,7 @@ class ViewId:
 
 class Controller(typing.Generic[T], ABC):
     __INSTANCES = dict()
+    __CB_ENTITIES_CHANGED: list[tuple[Callable, typing.Optional[type]]] = []
 
 
     def __init__(self, v_id: str, parent: typing.Optional[typing.Self]):
@@ -70,6 +73,17 @@ class Controller(typing.Generic[T], ABC):
 
     def __repr__(self):
         return f'{type(self).__name__}[{self.view_id.str_ctl()}]'
+
+    def register_entities_changed(self, cb: Callable, entity_type: typing.Optional[type]):
+        for ecb, eet in self.__CB_ENTITIES_CHANGED:
+            if ecb == cb:
+                return
+        self.__CB_ENTITIES_CHANGED.append((cb, entity_type))
+
+    def notify_entities_changed(self, entity_type: type):
+        for cb, et in self.__CB_ENTITIES_CHANGED:
+            if et is None or et == entity_type:
+                cb()
 
 
 class RootController(Controller[T], ABC):

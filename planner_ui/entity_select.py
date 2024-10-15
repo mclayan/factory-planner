@@ -4,13 +4,12 @@ import tkinter.ttk as ttk
 import typing
 from abc import ABC, abstractmethod
 from collections.abc import Callable
-from doctest import master
 from tkinter import StringVar
 from typing import Optional
 
 from data import Entity, Recipe, Resource, ResourceQuantity, ResourceQuantities
 from repository import RecipeRepository
-from . import T, RootController, View, AppGlobals
+from . import T, RootController, View
 
 from .application import Controller
 
@@ -32,6 +31,8 @@ class RecipeInfoVars:
 
 
 class EntitySelectController(RootController[Entity]):
+    DUMMY_NAME = '<<new>>'
+    DUMMY_ID = '<<dummy_id>>'
 
     def __init__(self, master, view_name: str, parent: typing.Optional[Controller], repository: RecipeRepository,
                  entity_type: type, label_text=None, show_info=False, is_readonly=True, id_filter: typing.Optional[list[str]]=None):
@@ -40,6 +41,7 @@ class EntitySelectController(RootController[Entity]):
         self.entity_type = entity_type
         self.entity_source = self.repository.resources if issubclass(self.entity_type,
                                                                      Resource) else self.repository.recipes
+        self.dummy_entity: typing.Optional[Entity] = None
         self.var_entities = tk.StringVar()
         self.repository = repository
         self.listeners_attr_change = []
@@ -60,20 +62,38 @@ class EntitySelectController(RootController[Entity]):
                 self.entity_attr_controller = RecipeAttrController(self.view, 'recipes', self, is_readonly)
                 self.view.init_info(self.entity_attr_controller.widget())
 
+        self.register_entities_changed(self.update_entities, entity_type)
+
     def update_entities(self):
+        self.clear_display()
         for e_id, entity in self.entity_source.items():
             if self.id_filter is not None:
                 if not e_id in self.id_filter:
                     continue
             self.view.tv_entities.insert('', 'end', id=e_id, text=entity.name)
+        if self.dummy_entity is not None:
+            self.view.tv_entities.insert('', 'end', iid=self.dummy_entity.id, text=self.dummy_entity.name)
+
+    def add_dummy(self, entity: Entity):
+        if self.dummy_entity is None:
+            self.dummy_entity = entity
+            if self.dummy_entity.id in self.entity_source:
+                self.dummy_entity.id = self.DUMMY_ID
+
+    def remove_dummy(self) -> typing.Optional[Entity]:
+        entity = None
+        if self.dummy_entity is not None:
+            entity = self.dummy_entity
+            self.dummy_entity = None
+        return entity
 
     def cb_select_entity(self, event):
         selected_entity = self.selected()
         if selected_entity is not None:
             if self.entity_attr_controller is not None:
                 self.entity_attr_controller.update_entity(copy.copy(self.selected()))
-            for listener in self.listeners_sel_change:
-                listener(self.selected())
+        for listener in self.listeners_sel_change:
+            listener(selected_entity)
 
     def cb_attr_change(self, is_mod):
         for listener in self.listeners_attr_change:
@@ -90,7 +110,10 @@ class EntitySelectController(RootController[Entity]):
     def selected(self) -> typing.Optional[Recipe | Resource]:
         sel_id = self.view.tv_entities.selection()
         if len(sel_id) > 0:
-            return self.entity_source.get(sel_id[0])
+            if sel_id[0] in self.entity_source:
+                return self.entity_source.get(sel_id[0])
+            elif self.dummy_entity is not None and self.dummy_entity.id == sel_id[0]:
+                return self.dummy_entity
 
     def write_entity(self, entity: Entity):
         orig_entity = self.selected()
@@ -132,16 +155,16 @@ class EntitySelectController(RootController[Entity]):
                 return
             elif val.id in self.entity_source:
                 sel_id = val.id
+            elif self.dummy_entity is not None and self.dummy_entity.id == val.id:
+                sel_id = self.dummy_entity.id
         if sel_id is None:
             print(f'WARN: requested item "{val}" is not in repository!')
         else:
-            self.view.tv_entities.selection_set(sel_id)
             self.view.tv_entities.selection_set(sel_id)
             self.view.tv_entities.see(sel_id)
 
     def validate_id(self, entity_id: str) -> bool:
         try:
-            print(f'{self}: validating id: "{entity_id}"')
             if self.repository.validate_id_format(entity_id):
                 if entity_id != self.entity_attr_controller.entity.id:
                     return entity_id not in self.entity_source
@@ -159,14 +182,14 @@ class EntitySelect(ttk.Labelframe, View):
         self.tv_entities = ttk.Treeview(self)
         self.tv_entities.bind('<<TreeviewSelect>>', self.controller.cb_select_entity)
         self.tv_entities.grid(row=0, column=0, sticky=tk.NSEW, padx=10, pady=10)
-        self.columnconfigure(0, weight=1)
-        self.columnconfigure(1, weight=1)
-        self.rowconfigure(0, weight=1)
+        self.columnconfigure(0, weight=2)
+        self.rowconfigure(0, weight=2)
         self.info_view = None
 
     def init_info(self, info_view: tk.Widget):
         self.info_view = info_view
         self.info_view.grid(row=0, column=1, sticky=tk.NSEW, padx=10, pady=10)
+        self.columnconfigure(1, weight=1)
 
 
 class EntityInfo(Controller[T], ABC):
@@ -189,6 +212,9 @@ class EntityInfo(Controller[T], ABC):
     def reset_flags(self):
         pass
 
+    def value_updated(self) -> typing.Optional[T]:
+        pass
+
 
 class ResourceAttrController(EntityInfo[Resource]):
 
@@ -196,20 +222,30 @@ class ResourceAttrController(EntityInfo[Resource]):
         super().__init__(view_name, parent, is_readonly)
         self.var_is_raw = tk.BooleanVar()
         self.var_name = tk.StringVar()
-        self.entity = None
-        self.view = ResourceInfo(master, self, label_text)
+        self.entity: typing.Optional[Resource] = None
+        self.view = ResourceAttrView(master, self, label_text)
         self.listeners_attr_change = []
-        validation_cb = master.register(lambda args: self.cb_attr_change('id', args))
-        self.view.en_res_id.configure(validate='key', validatecommand=(validation_cb, '%P'))
+        change_cb_id = master.register(lambda args: self.cb_attr_change('id', args))
+        change_cb_name = master.register(lambda args: self.cb_attr_change('name', args))
+        self.view.en_res_id.configure(validate='key', validatecommand=(change_cb_id, '%P'))
+        self.view.en_res_name_val.configure(validate='key', validatecommand=(change_cb_name, '%P'))
+        self.view.ckb_is_raw.configure(command=lambda: self.cb_attr_change('ir'))
         self.is_valid_id = True
         self.is_mod = False
 
-    def update_entity(self, new_val: Resource):
+    def update_entity(self, new_val: typing.Optional[Resource]):
         if isinstance(new_val, Resource):
+            self.reset_flags()
             self.entity = new_val
             self.var_is_raw.set(new_val.is_raw)
             self.var_name.set(new_val.name)
             self.var_entity_id.set(new_val.id)
+        elif new_val is None:
+            self.reset_flags()
+            self.entity = None
+            self.var_name.set('')
+            self.var_entity_id.set('')
+            self.var_is_raw.set(False)
         else:
             print(f'WARN: {self}: invalid value for this type: {new_val}')
 
@@ -217,19 +253,22 @@ class ResourceAttrController(EntityInfo[Resource]):
         self.listeners_attr_change.append(cb)
 
     def cb_attr_change(self, src: typing.Literal['id', 'name', 'ir'], *args):
-        differs = False
-        if src == 'id':
-            differs = self.cb_id_val_change(args[0])
-        elif src == 'name':
-            differs = self.entity.name != self.var_name.get()
-        elif src == 'ir':
-            differs = self.entity.is_raw != self.var_is_raw.get()
-        if not differs:
-            differs = (self.entity.name == self.var_name.get()
-                       and self.entity.id == self.var_entity_id.get()
-                       and self.entity.is_raw == self.var_is_raw.get())
-        for listener in self.listeners_attr_change:
-            listener(differs)
+        if self.entity is not None:
+            differs = False
+            if src == 'id' and args[0] != self.entity.id:
+                differs = self.cb_id_val_change(args[0])
+                if differs != self.is_mod:
+                    self.is_mod = differs or (self.entity.name != self.var_name.get() or self.entity.is_raw != self.var_is_raw.get())
+            elif src == 'name':
+                differs = self.entity.name != args[0]
+                if differs != self.is_mod:
+                    self.is_mod = differs or (self.entity.id != self.var_entity_id.get() or self.entity.is_raw != self.var_is_raw.get())
+            elif src == 'ir':
+                differs = self.entity.is_raw != self.var_is_raw.get()
+                if differs != self.is_mod:
+                    self.is_mod = differs or (self.entity.id != self.var_entity_id.get() or self.entity.name != self.var_name.get())
+            for listener in self.listeners_attr_change:
+                listener(self.is_mod)
 
         return True
 
@@ -250,22 +289,33 @@ class ResourceAttrController(EntityInfo[Resource]):
                 self.view.en_res_id['bg'] = self.view.col_en_orig
             return False
 
-    def widget(self) -> tk.Widget:
+
+    def widget(self) -> 'ResourceAttrView':
         return self.view
 
     def value(self) -> Resource:
         return self.entity
 
-    def set_value(self, val: Resource):
+    def set_value(self, val: typing.Optional[Resource]):
         self.update_entity(val)
 
     def reset_flags(self):
-        if not self.is_valid_id:
-            self.is_valid_id = True
-            self.view.en_res_id['bg'] = self.view.col_en_orig
+        self.is_mod = False
+        self.is_valid_id = True
+        self.view.en_res_id['bg'] = self.view.col_en_orig
+
+    def value_updated(self) -> typing.Optional[T]:
+        if self.is_mod:
+            updated = copy.copy(self.entity)
+            updated.name = self.var_name.get()
+            updated.id = self.var_entity_id.get()
+            updated.is_raw = self.var_is_raw.get()
+            return updated
+        else:
+            return None
 
 
-class ResourceInfo(ttk.Labelframe, View):
+class ResourceAttrView(ttk.Labelframe, View):
 
     def __init__(self, master, controller: ResourceAttrController, label_text=None):
         View.__init__(self, controller)
@@ -273,27 +323,28 @@ class ResourceInfo(ttk.Labelframe, View):
         row = 0
 
         self.lbl_res_name = tk.Label(self, text='Name')
-        self.lbl_res_name.grid(row=row, column=0, sticky=tk.W)
+        self.lbl_res_name.grid(row=row, column=0, sticky=tk.W, padx=10)
 
         self.en_res_name_val = tk.Entry(self, textvariable=controller.var_name)
-        self.en_res_name_val.grid(row=row, column=1, sticky=tk.EW)
+        self.en_res_name_val.grid(row=row, column=1, sticky=tk.EW, padx=10)
         row += 1
 
         self.lbl_res_id = tk.Label(self, text='Recipe ID')
-        self.lbl_res_id.grid(row=row, column=0, sticky=tk.W)
+        self.lbl_res_id.grid(row=row, column=0, sticky=tk.W, padx=10)
 
         self.en_res_id = tk.Entry(self, textvariable=controller.var_entity_id)
-        self.en_res_id.grid(row=row, column=1, sticky=tk.EW)
+        self.en_res_id.grid(row=row, column=1, sticky=tk.EW, padx=10)
         row += 1
 
         self.ckb_is_raw = tk.Checkbutton(self, text='Raw Resource', variable=controller.var_is_raw)
-        self.ckb_is_raw.grid(row=row, column=1, sticky=tk.W)
+        self.ckb_is_raw.grid(row=row, column=1, sticky=tk.W, padx=10)
         row += 1
 
         if controller.read_only:
             self.set_readonly(True)
 
         self.col_en_orig = self.en_res_id['bg']
+        self.columnconfigure(1, weight=1)
 
     def set_readonly(self, ro: bool):
         self.en_res_name_val.configure(state='readonly' if ro else 'normal')
