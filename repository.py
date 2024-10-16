@@ -90,6 +90,14 @@ class RecipeRepository:
         else:
             return False
 
+    def delete_recipe(self, recipe_id: str) -> bool:
+        if recipe_id in self.recipes:
+            self.recipes.pop(recipe_id)
+            self.mod_recipes = True
+            return True
+        else:
+            return False
+
     def resource(self, res_id: str) -> typing.Optional[Resource]:
         return self.resources.get(res_id, None)
 

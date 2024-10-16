@@ -1,3 +1,4 @@
+import readline
 import shlex
 import typing
 from abc import ABC, abstractmethod
@@ -13,15 +14,15 @@ from repository import RecipeRepository, DuplicateKeyError, RecipeBuilder
 
 
 def generate_id(name: str) -> str:
-    return name.lower().replace(' ', '_')\
-        .replace('(', '')\
-        .replace(')', '')\
-        .replace('[', '')\
-        .replace(']', '')\
-        .replace('{', '')\
-        .replace('}', '')\
-        .replace('"', '')\
-        .replace("'", '')\
+    return name.lower().replace(' ', '_') \
+        .replace('(', '') \
+        .replace(')', '') \
+        .replace('[', '') \
+        .replace(']', '') \
+        .replace('{', '') \
+        .replace('}', '') \
+        .replace('"', '') \
+        .replace("'", '') \
         .replace('__', '_')
 
 
@@ -45,8 +46,10 @@ class ObjectStub:
     def __str__(self):
         return f'ObjectStub[id={self.id} name={self.name}]'
 
+
 def noopt() -> Any:
     pass
+
 
 class CliCommand(ABC):
 
@@ -76,7 +79,8 @@ class AddResourceCommand(CliCommand):
     def __init__(self, repo: RecipeRepository):
         parser = ArgumentParser(prog=AddResourceCommand.cmd_name)
         parser.add_argument('-i', '--id', metavar='NAME', dest='resource_id', help='Set resource id.', default='')
-        parser.add_argument('-r', '--raw', action='store_true', dest='is_raw', help='Make resource a raw base resource.')
+        parser.add_argument('-r', '--raw', action='store_true', dest='is_raw',
+                            help='Make resource a raw base resource.')
         parser.add_argument('name', metavar='NAME', help='Name of the resource', default='')
 
         super().__init__(parser)
@@ -142,7 +146,8 @@ class AddRawResourceRecipe(CliCommand):
         product_stub = self.parse_resources(args.products)
         prod_name = product_stub[0].name
         prod_id = product_stub[0].id
-        product = self.repository.resource(prod_id) if prod_id is not None else self.repository.resource_by_name(prod_name)
+        product = self.repository.resource(prod_id) if prod_id is not None else self.repository.resource_by_name(
+            prod_name)
 
         recipe = RecipeBuilder(self.repository) \
             .cycle_time(timedelta(minutes=1)) \
@@ -235,7 +240,7 @@ class AddRecipeCommand(CliCommand):
             return
 
         builder = RecipeBuilder(self.repository) \
-            .cycle_time(timedelta(hours=cycle_hours, minutes=cycle_mins, seconds=cycle_secs))\
+            .cycle_time(timedelta(hours=cycle_hours, minutes=cycle_mins, seconds=cycle_secs)) \
             .name(recipe_name) \
             .id(recipe_id)
 
@@ -309,20 +314,22 @@ class FindRecipes(CliCommand):
         self.repository = repo
 
 
-class BuildDependecyTree(CliCommand):
+class BuildDependencyTree(CliCommand):
     cmd_name = 'tree'
 
     def __init__(self, repo: RecipeRepository):
         parser = ArgumentParser(prog=self.cmd_name)
         parser.add_argument('recipe_sel', metavar='RECIPE')
-        parser.add_argument('-l', '--limit', type=int, dest='limit', default=None, help='Maximum tree depth (recursion)')
-        parser.add_argument('-p', '--product', type=str, dest='product', default=None, help='Product to select from recipe. Optional if recipe produces only one product.')
-        parser.add_argument('-r', '--rpm', type=float, default=None, help='Target RPM of the selected product. If not set, the default RPM for the product in the recipe will be used.')
+        parser.add_argument('-l', '--limit', type=int, dest='limit', default=None,
+                            help='Maximum tree depth (recursion)')
+        parser.add_argument('-p', '--product', type=str, dest='product', default=None,
+                            help='Product to select from recipe. Optional if recipe produces only one product.')
+        parser.add_argument('-r', '--rpm', type=float, default=None,
+                            help='Target RPM of the selected product. If not set, the default RPM for the product in the recipe will be used.')
 
         super().__init__(parser)
 
         self.repository = repo
-
 
     def command_name(self) -> str:
         return self.cmd_name
@@ -343,7 +350,6 @@ class BuildDependecyTree(CliCommand):
         if recipe is None:
             print(f'Cannot find recipe "{recipe_sel}"')
             return
-
 
         if len(recipe.products) > 1:
             product_sel = ObjectStub.parse(args.product)
@@ -395,7 +401,8 @@ class ListObjects(CliCommand):
         parser = ArgumentParser(prog=self.cmd_name)
         parser.add_argument('-p', '--product', type=str, default=None, help='Display specific resource/product.')
         parser.add_argument('-r', '--recipe', type=str, default=None, help='Display specific recipe.')
-        parser.add_argument('type_name', metavar='TYPE', nargs='?', default=None, choices=['r', 'recipes', 'R', 'resources'])
+        parser.add_argument('type_name', metavar='TYPE', nargs='?', default=None,
+                            choices=['r', 'recipes', 'R', 'resources'])
         super().__init__(parser)
         self.repository = repo
 
@@ -445,12 +452,102 @@ class ListObjects(CliCommand):
                     print(f'{r_id} -> "{resource.name}"')
 
 
+class RemoveResource(CliCommand):
+    cmd_name = 'rm-resource'
+
+    def __init__(self, repo: RecipeRepository):
+        parser = ArgumentParser(prog=self.cmd_name)
+        parser.add_argument(metavar='NAME|ID', dest='resource_sel')
+        super().__init__(parser)
+
+        self.repository = repo
+
+    def command_name(self) -> str:
+        return self.cmd_name
+
+    def execute(self, command_str: str):
+        args = self.parse_arguments(command_str)
+        sel = args.resource_sel
+        stub = ObjectStub.parse(sel)
+        if stub.name is not None:
+            resource = self.repository.resource_by_name(stub.name)
+        else:
+            resource = self.repository.resource(stub.id)
+        if resource is None:
+            print(f'Error: no such resource {stub}')
+
+        dependents = []
+        for recipe in self.repository.recipes.values():
+            if resource.id in recipe.resources:
+                dependents.append((recipe.name, 'IN'))
+            if resource.id in recipe.products:
+                dependents.append((recipe.name, 'OUT'))
+
+        if len(dependents) > 0:
+            print(f'Error: cannot delete because the following recipes reference this resource:')
+            for dep_name, dep_dir in dependents:
+                print(f'  "{dep_name}" ({dep_dir})')
+        else:
+            if not self.repository.delete_resource(resource.id):
+                print(f'Failed to delete resource {resource} (unknown error)')
+
+
+class RemoveRecipe(CliCommand):
+    cmd_name = 'rm-recipe'
+
+    def __init__(self, repo: RecipeRepository):
+        parser = ArgumentParser(prog=self.cmd_name)
+        parser.add_argument(metavar='NAME|ID', dest='recipe_sel')
+        super().__init__(parser)
+
+        self.repository = repo
+
+    def command_name(self) -> str:
+        return self.cmd_name
+
+    def execute(self, command_str: str):
+        args = self.parse_arguments(command_str)
+        sel = args.recipe_sel
+        stub = ObjectStub.parse(sel)
+        if stub.name is not None:
+            recipe = self.repository.recipe_by_name(stub.name)
+        else:
+            recipe = self.repository.recipe(stub.id)
+        if recipe is None:
+            print(f'Error: no such recipe {stub}')
+
+        if not self.repository.delete_recipe(recipe.id):
+            print(f'Failed to delete recipe {recipe} (unknown error)')
+
+
+class Completer:
+
+    def __init__(self, commands: list[CliCommand]):
+        self.commands = [cmd.command_name() for cmd in commands]
+        self.options = []
+
+    def __call__(self, text, state):
+        if state == 0:
+            if len(text) == 0:
+                if readline.get_line_buffer().lstrip(' ') != '':
+                    return None
+            self.options = [c for c in self.commands if c.startswith(text)]
+
+        if len(self.options) > state:
+            return self.options[state]
+        else:
+            return None
+
 
 class Cli:
 
-    def __init__(self, repo: RecipeRepository, commands: list[CliCommand]):
+    def __init__(self, repo: RecipeRepository):
         self.repo = repo
-        self.commands = commands
+        self.commands = [AddRecipeCommand(repo), AddResourceCommand(repo), FindRecipes(repo), BuildDependencyTree(repo),
+                         ListObjects(repo), AddRawResourceRecipe(repo), RemoveResource(repo), RemoveRecipe(repo)]
+        readline.parse_and_bind('tab: complete')
+        readline.set_completer_delims(' ')
+        readline.set_completer(Completer(self.commands))
 
     def list_recipes(self, product_id: str):
         product = self.repo.resource_by_name(product_id)

@@ -2,11 +2,8 @@ import argparse
 
 import planner_ui
 import planner_ui.application
-from cli import Cli, AddRecipeCommand, AddResourceCommand, FindRecipes, BuildDependecyTree, ListObjects, \
-    AddRawResourceRecipe
 import repository
-from repository import RecipeRepository
-
+from cli import Cli
 
 
 class MainConfig:
@@ -21,12 +18,8 @@ class MainConfig:
 
 def _cli(config: MainConfig):
     repo = config.repository
-    commands = [AddRecipeCommand(repo), AddResourceCommand(repo), FindRecipes(repo), BuildDependecyTree(repo),
-                ListObjects(repo), AddRawResourceRecipe(repo)]
-
-    cli = Cli(repo, commands)
+    cli = Cli(repo)
     while cli.loop(): pass
-
 
 
 def _main():
