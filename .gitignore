@@ -1,5 +1,5 @@
 /.idea/
 /.venv/
-/data/
+/data/test/
 **/__pycache__/
 /scratch.py
