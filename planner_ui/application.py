@@ -56,12 +56,19 @@ class Application(tk.Frame):
             self.sub_view = controller
             self.sub_view.widget().grid(row=0, column=1)
 
+def set_productivity_look(style: ttk.Style):
+    tv_bg_name = 'LightGoldenrodYellow'
+    style.configure("Treeview", background=tv_bg_name, fieldbackground=tv_bg_name)
 
 def main(config: MainConfig):
     root = tk.Tk()
     style = ttk.Style()
     if config.theme in style.theme_names():
         style.theme_use(config.theme)
+
+    if config.productivity_look:
+        set_productivity_look(style)
+
     root.columnconfigure(0, weight=1)
     root.rowconfigure(0, weight=1)
     app = Application(config.repository, master=style.master)

@@ -528,7 +528,7 @@ class SaveRepository(CliCommand):
 
     def __init__(self, main_cfg: MainConfig):
         parser = ArgumentParser(prog=self.cmd_name)
-        parser.add_argument('-f', '--force', dest='force', action='store_true', default='False', help='Force writing repository')
+        parser.add_argument('-f', '--force', dest='force', action='store_true', help='Force writing repository')
         parser.add_argument( '--recipes', metavar='FILE', dest='recipes_file', help='Custom recipes file')
         parser.add_argument( '--resources', metavar='FILE', dest='resources_file', help='Custom resources file')
         super().__init__(parser)

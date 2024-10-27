@@ -26,6 +26,7 @@ def _main():
                         const='cli')
     parser.add_argument('-R', '--read-only', dest='is_readonly', help='Do not save changes when exiting', action='store_true')
     parser.add_argument('--theme', dest='gui_theme', help='GUI theme to use. Defaults to \'classic\'.', default='classic')
+    parser.add_argument('--productivity', dest='productivity_look', help='Improve the GUI look towards a traditional productivity design.', action='store_true')
     args = parser.parse_args()
 
     recipes_file = f'{args.data_dir}/{args.recipes_name}'
@@ -36,6 +37,8 @@ def _main():
 
     repo = repository.load_repository(resources_file, recipes_file)
     config = MainConfig(resources_file, recipes_file, repo, args.gui_theme)
+    if args.productivity_look:
+        config.productivity_look = True
 
     op_mode = args.op_mode
     try:
