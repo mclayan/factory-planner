@@ -1,5 +1,6 @@
 import json
 import re
+import sys
 import typing
 from argparse import ArgumentError
 from datetime import timedelta
@@ -105,14 +106,16 @@ class RecipeRepository:
         return self.recipes.get(rec_id, None)
 
     def resource_by_name(self, name: str) -> typing.Optional[Resource]:
+        name_lc = name.lower()
         for resource in self.resources.values():
-            if resource.name == name:
+            if resource.name.lower() == name_lc:
                 return resource
         return None
 
     def recipe_by_name(self, name: str) -> typing.Optional[Recipe]:
+        name_lc = name.lower()
         for recipe in self.recipes.values():
-            if recipe.name == name:
+            if recipe.name.lower() == name_lc:
                 return recipe
         return None
 
@@ -198,24 +201,36 @@ def load_repository(resources_path: str, recipes_path: str):
 
     return repo
 
-def save_repository(repo: RecipeRepository, resources_path: str, recipes_path: str):
-    if repo.mod_recipes:
-        j_rec_arr = []
-        for recipe in repo.recipes.values():
-            j_rec_arr.append(recipe.as_dict())
+def save_repository(repo: RecipeRepository, resources_path: typing.Optional[str], recipes_path: typing.Optional[str], force=False):
+    if repo.mod_recipes or force:
+        if recipes_path is not None:
+            j_rec_arr = []
+            vals_sorted = sorted(repo.recipes.values(), key=Recipe.get_id)
+            for recipe in vals_sorted:
+                j_rec_arr.append(recipe.as_dict())
 
-        with open(recipes_path, 'wt') as recipes_file:
-            json.dump(j_rec_arr, recipes_file)
+            if recipes_path != '-':
+                with open(recipes_path, 'wt') as recipes_file:
+                    json.dump(j_rec_arr, recipes_file)
+            else:
+                json.dump(j_rec_arr, sys.stdout)
+            del vals_sorted
     else:
         print(f'Recipes not modified, skipping saving.')
 
-    if repo.mod_resources:
-        j_res_arr = []
-        for resource in repo.resources.values():
-            j_res_arr.append(resource.as_dict())
+    if repo.mod_resources or force:
+        if resources_path is not None:
+            j_res_arr = []
+            vals_sorted = sorted(repo.resources.values(), key=Resource.get_id)
+            for resource in vals_sorted:
+                j_res_arr.append(resource.as_dict())
 
-        with open(resources_path, 'wt') as res_file:
-            json.dump(j_res_arr, res_file)
+            if resources_path != '-':
+                with open(resources_path, 'wt') as res_file:
+                    json.dump(j_res_arr, res_file)
+            else:
+                json.dump(j_res_arr, sys.stdout)
+            del vals_sorted
     else:
         print(f'Resources not modified, skipping saving.')
 

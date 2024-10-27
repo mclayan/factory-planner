@@ -3,12 +3,15 @@ import shlex
 import typing
 from abc import ABC, abstractmethod
 from argparse import ArgumentParser, ArgumentError
-from collections.abc import Iterator
+from collections.abc import Iterator, Callable
 from datetime import timedelta
+from symtable import Function
 from typing import Any
 
 import chaining
+import repository
 from chaining import ProductionTree
+from config import MainConfig
 from data import Resource
 from repository import RecipeRepository, DuplicateKeyError, RecipeBuilder
 
@@ -520,6 +523,45 @@ class RemoveRecipe(CliCommand):
             print(f'Failed to delete recipe {recipe} (unknown error)')
 
 
+class SaveRepository(CliCommand):
+    cmd_name = 'save'
+
+    def __init__(self, main_cfg: MainConfig):
+        parser = ArgumentParser(prog=self.cmd_name)
+        parser.add_argument('-f', '--force', dest='force', action='store_true', default='False', help='Force writing repository')
+        parser.add_argument( '--recipes', metavar='FILE', dest='recipes_file', help='Custom recipes file')
+        parser.add_argument( '--resources', metavar='FILE', dest='resources_file', help='Custom resources file')
+        super().__init__(parser)
+
+        self.main_cfg = main_cfg
+        self.repository = main_cfg.repository
+
+    def command_name(self) -> str:
+        return self.cmd_name
+
+    def execute(self, command_str: str):
+        args = self.parse_arguments(command_str)
+        std_resources_path = self.main_cfg.resources_file
+        std_recipes_path = self.main_cfg.recipes_file
+
+        resources_path = None
+        recipes_path = None
+        if args.force or args.resources_file is not None or self.repository.mod_resources:
+            resources_path = args.resources_file if args.resources_file is not None else std_resources_path
+        if args.force or args.recipes_file is not None or self.repository.mod_recipes:
+            recipes_path = args.recipes_file if args.recipes_file is not None else std_recipes_path
+
+        if resources_path is not None or recipes_path is not None:
+            if resources_path is not None:
+                print(f'saving resources -> {resources_path}')
+            if recipes_path is not None:
+                print(f'saving recipes   -> {recipes_path}')
+            repository.save_repository(self.repository, resources_path, recipes_path, args.force)
+        else:
+            print(f'No modification done, not saving repository (use --force to force saving)')
+
+
+
 class Completer:
 
     def __init__(self, commands: list[CliCommand]):
@@ -541,10 +583,11 @@ class Completer:
 
 class Cli:
 
-    def __init__(self, repo: RecipeRepository):
-        self.repo = repo
-        self.commands = [AddRecipeCommand(repo), AddResourceCommand(repo), FindRecipes(repo), BuildDependencyTree(repo),
-                         ListObjects(repo), AddRawResourceRecipe(repo), RemoveResource(repo), RemoveRecipe(repo)]
+    def __init__(self, main_cfg: MainConfig):
+        self.repo = main_cfg.repository
+        self.commands = [AddRecipeCommand(self.repo), AddResourceCommand(self.repo), FindRecipes(self.repo), BuildDependencyTree(self.repo),
+                         ListObjects(self.repo), AddRawResourceRecipe(self.repo), RemoveResource(self.repo), RemoveRecipe(self.repo),
+                         SaveRepository(main_cfg)]
         readline.parse_and_bind('tab: complete')
         readline.set_completer_delims(' ')
         readline.set_completer(Completer(self.commands))

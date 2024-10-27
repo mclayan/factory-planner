@@ -4,21 +4,11 @@ import planner_ui
 import planner_ui.application
 import repository
 from cli import Cli
-
-
-class MainConfig:
-    APP_VERSION = '2.0.0'
-
-    def __init__(self, resources_file, recipes_file, repo, theme):
-        self.resources_file = resources_file
-        self.recipes_file = recipes_file
-        self.repository = repo
-        self.theme = theme
+from config import MainConfig
 
 
 def _cli(config: MainConfig):
-    repo = config.repository
-    cli = Cli(repo)
+    cli = Cli(config)
     while cli.loop(): pass
 
 

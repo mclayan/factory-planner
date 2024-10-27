@@ -3,7 +3,7 @@ import tkinter.ttk as ttk
 import typing
 
 from data import Resource, Recipe
-from main import MainConfig
+from config import MainConfig
 from . import Controller, AppGlobals, add_unimplemented_label
 from .entity_select import EntitySelectController
 from repository import RecipeRepository
