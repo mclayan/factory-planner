@@ -104,7 +104,6 @@ class Planner(ttk.Frame, View):
         self.vw_product_select.grid(row=row, column=1, sticky=tk.NSEW, padx=10)
         row += 1
 
-
         self.rpm_frame.grid(row=row, column=0, sticky=tk.EW, pady=10)
         self.btn_generate.grid(row=row, column=1, padx=10)
         row += 1
@@ -122,18 +121,21 @@ class StationPlanViewController(Controller):
         self.graph: typing.Optional[ProductionGraph] = None
 
     def update_tree(self):
-        tv = self.view.tv_stations
+        tv = self.view.tv_recipe_stages
         for stage_node in self.graph.as_list():
             recipe = stage_node.recipe.recipe
             recipe_id = stage_node.recipe_id()
             id_in = f'{recipe_id}_in'
             id_out = f'{recipe_id}_out'
+            recipe_consumer_count = len(stage_node.consumers.values())
             tv.insert('', 'end', iid=stage_node.recipe.recipe_id(), values=(
-                stage_node.recipe.scale, '', stage_node.recipe.recipe.name
-            ))
+                f'{int(stage_node.recipe.scale)}', '', stage_node.recipe.recipe.name, '', '', '', '', recipe_consumer_count
+            ), tags=('row_recipe',))
             tv.insert(recipe_id, 'end', iid=id_in, values=('', 'IN'), open=True, tags=('row_io',))
             tv.insert(recipe_id, 'end', iid=id_out, values=('', 'OUT'), open=True, tags=('row_io',))
             recipe_components = stage_node.recipe.scaled_components()
+            recipe_demands = stage_node.resource_demand()
+
             if len(recipe.resources) == 0:
                 tv.insert(id_in, 'end', iid=f'{recipe_id}_raw', values=('', '', '', '', recipe.source_name))
             else:
@@ -142,13 +144,26 @@ class StationPlanViewController(Controller):
                     res_id = resource.resource.id
                     base_qt = int(stage_node.recipe.recipe.resources[res_id].quantity)
                     rpm = resource.quantity
-                    tv.insert(id_in, 'end', iid=in_res_id, values=('', '', '', base_qt, resource.resource.name, rpm))
+                    tv.insert(id_in, 'end', iid=in_res_id, values=('', '', '', base_qt, resource.resource.name, f'{rpm:.1f}'),
+                              tags=('row_resource',))
             for resource in recipe_components.products:
                 out_res_id = f'{recipe_id}_{resource.resource.id}_out'
                 res_id = resource.resource.id
                 base_qt = int(stage_node.recipe.recipe.products[res_id].quantity)
                 rpm = resource.quantity
-                tv.insert(id_out, 'end', iid=out_res_id, values=('', '', '', base_qt, resource.resource.name, rpm))
+                overflow = 0
+                res_consumers = []
+                if res_id in recipe_demands:
+                    overflow = rpm - recipe_demands[res_id].quantity
+                    for consumer in stage_node.consumers.values():
+                        if res_id in consumer.recipe.recipe.resources:
+                            res_consumers.append(consumer.recipe.recipe.name)
+                consumers = ", ".join(res_consumers)
+                tv.insert(id_out, 'end', iid=out_res_id,
+                          values=('', '', '',
+                                  base_qt, resource.resource.name,
+                                  f'{rpm:.1f}', f'{overflow:.1f}', consumers),
+                          tags=('row_product',))
 
     def widget(self) -> 'StationPlanView':
         return self.view
@@ -161,8 +176,8 @@ class StationPlanViewController(Controller):
         self.update_tree()
 
     def clear_display(self):
-        items = self.view.tv_stations.get_children()
-        self.view.tv_stations.delete(*items)
+        items = self.view.tv_recipe_stages.get_children()
+        self.view.tv_recipe_stages.delete(*items)
 
 
 class StationPlanView(ttk.Frame, View):
@@ -172,7 +187,9 @@ class StationPlanView(ttk.Frame, View):
         'io': 'Indicator if the row displays a resource or a product of the parent recipe',
         'res_qt': 'Base quantity of the resource/product (for one execution of the recipe)',
         'res_name': 'Name of the resource/product',
-        'rpm': 'Demand or production of the resource or product per minute'
+        'rpm': 'Demand or production of the resource or product per minute',
+        'overflow': 'Difference between total output rate and actual demand. Assuming integer scales of a recipe, this will be a positive number for intermediate recipe executions if dependant recipes do not consume 100% of the output.',
+        'c_count': 'Number of production steps (recipes) consuming products of this recipe.'
     }
 
     def __init__(self, master, controller: StationPlanViewController):
@@ -180,37 +197,48 @@ class StationPlanView(ttk.Frame, View):
         super().__init__(master)
         self.var_heading_help = StringVar()
 
-        self.tv_stations = ttk.Treeview(self, columns=('scale', 'io', 'recipe', 'res_qt', 'res_name', 'rpm'))
-        self.tv_stations.grid(row=0, column=0, sticky=tk.NSEW)
+        self.tv_recipe_stages = ttk.Treeview(self, columns=(
+        'scale', 'io', 'recipe', 'res_qt', 'res_name', 'rpm', 'overflow', 'c_count'))
+        self.tv_recipe_stages.grid(row=0, column=0, sticky=tk.NSEW)
         self.rowconfigure(0, weight=1)
         self.columnconfigure(0, weight=1)
-        self.tv_stations.column('#0', minwidth=50, width=50, stretch=False)
+        self.tv_recipe_stages.column('#0', minwidth=50, width=50, stretch=False)
 
-        self.tv_stations.column('scale', minwidth=50, width=50, stretch=False)
-        self.tv_stations.heading('scale', text='F', command=lambda: self.set_help('scale'), anchor='w')
+        self.tv_recipe_stages.column('scale', minwidth=50, width=50, stretch=False)
+        self.tv_recipe_stages.heading('scale', text='F', command=lambda: self.set_help('scale'), anchor='w')
 
-        self.tv_stations.heading('recipe', text='Recipe', command=lambda: self.set_help('recipe'))
+        self.tv_recipe_stages.heading('recipe', text='Recipe', command=lambda: self.set_help('recipe'))
 
-        self.tv_stations.column('io', width=60, stretch=False)
-        self.tv_stations.heading('io', text='I/O', command=lambda: self.set_help('io'))
+        self.tv_recipe_stages.column('io', width=60, stretch=False)
+        self.tv_recipe_stages.heading('io', text='I/O', command=lambda: self.set_help('io'))
 
-        self.tv_stations.heading('res_qt', text='Quantity', command=lambda: self.set_help('res_qt'))
-        self.tv_stations.column('res_qt', width=80, stretch=False)
+        self.tv_recipe_stages.heading('res_qt', text='B.Qt.', command=lambda: self.set_help('res_qt'))
+        self.tv_recipe_stages.column('res_qt', width=60, stretch=False)
+        self.tv_recipe_stages.column('rpm', width=80, stretch=False)
 
-        self.tv_stations.heading('res_name', text='Resource', command=lambda: self.set_help('res_name'))
-        self.tv_stations.heading('rpm', text='RPM', command=lambda: self.set_help('rpm'))
+        self.tv_recipe_stages.heading('res_name', text='Resource', command=lambda: self.set_help('res_name'))
+        self.tv_recipe_stages.heading('rpm', text='RPM', command=lambda: self.set_help('rpm'))
+        self.tv_recipe_stages.heading('overflow', text='Overflow', command=lambda: self.set_help('overflow'))
+        self.tv_recipe_stages.heading('c_count', text='Consumers', command=lambda: self.set_help('c_count'))
 
-        self.tv_stations.bind('<Leave>', self.hide_tooltip)
-        self.tv_stations.tag_configure('row_io', background='#bcbcbc')
+        self.tv_recipe_stages.bind('<Leave>', self.hide_tooltip)
+        self.tv_recipe_stages.tag_configure('row_io', background='#bebebe')
+        self.tv_recipe_stages.tag_configure('row_resource', background='#95a3c5')
+        self.tv_recipe_stages.tag_configure('row_product', background='#88cf8e')
+
+        style = ttk.Style()
+        row_font = Font(font=tk.font.nametofont(style.configure('.','font')))
+        row_font['weight'] = 'bold'
+        self.tv_recipe_stages.tag_configure('row_recipe', font=row_font)
+
 
         self.frame_help = ttk.LabelFrame(self, text='Help')
         self.frame_help.grid(row=1, column=0, sticky=tk.NSEW)
         self.lbl_help_text = tk.Label(self.frame_help, textvariable=self.var_heading_help)
-        font = Font(font=self.lbl_help_text['font'])
-        font['slant'] = 'italic'
-        self.lbl_help_text.configure(font=font)
+        lbl_font = Font(font=self.lbl_help_text['font'])
+        lbl_font['slant'] = 'italic'
+        self.lbl_help_text.configure(font=lbl_font, wraplength=1000, justify="left")
         self.lbl_help_text.grid(row=0, column=0, sticky=tk.S + tk.EW)
-
 
     def set_help(self, col_id):
         self.var_heading_help.set(self.__HELP_TEXT.get(col_id, ''))
