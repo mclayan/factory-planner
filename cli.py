@@ -56,7 +56,8 @@ def noopt() -> Any:
 
 class CliCommand(ABC):
 
-    def __init__(self, parser: ArgumentParser):
+    def __init__(self, config: MainConfig, parser: ArgumentParser):
+        self.main_config = config
         self.parser = parser
         self.parser.exit_on_error = False
         self.parser.exit = noopt
@@ -66,6 +67,8 @@ class CliCommand(ABC):
         pass
 
     def parse_arguments(self, arg_str: str):
+        if self.main_config.debug:
+            print(f'{self.command_name()}: invoked with "{arg_str}"')
         return self.parser.parse_args(shlex.split(arg_str))
 
     @abstractmethod
@@ -79,15 +82,15 @@ class AddResourceCommand(CliCommand):
     def command_name(self) -> str:
         return AddResourceCommand.cmd_name
 
-    def __init__(self, repo: RecipeRepository):
+    def __init__(self, config: MainConfig):
         parser = ArgumentParser(prog=AddResourceCommand.cmd_name)
         parser.add_argument('-i', '--id', metavar='NAME', dest='resource_id', help='Set resource id.', default='')
         parser.add_argument('-r', '--raw', action='store_true', dest='is_raw',
                             help='Make resource a raw base resource.')
         parser.add_argument('name', metavar='NAME', help='Name of the resource', default='')
 
-        super().__init__(parser)
-        self.repository = repo
+        super().__init__(config, parser)
+        self.repository = self.main_config.repository
 
     def execute(self, command_str: str):
         args = self.parse_arguments(command_str)
@@ -106,16 +109,16 @@ class AddResourceCommand(CliCommand):
 class AddRawResourceRecipe(CliCommand):
     cmd_name = 'add-source'
 
-    def __init__(self, repo: RecipeRepository):
+    def __init__(self, config: MainConfig):
         parser = ArgumentParser(prog=AddRawResourceRecipe.cmd_name)
         parser.add_argument('-i', '--id', metavar='NAME', dest='recipe_id', help='Set recipe id.')
         parser.add_argument('-p', '--product', help='Resource produced by executing the recipe.', nargs=2,
                             action='extend', dest='products')
         parser.add_argument('-s', '--source', metavar='NAME', dest='source_name', required=True)
         parser.add_argument('name', metavar='NAME', help='Name of the recipe.')
-        super().__init__(parser)
 
-        self.repository = repo
+        super().__init__(config, parser)
+        self.repository = self.main_config.repository
 
     def command_name(self) -> str:
         return AddRawResourceRecipe.cmd_name
@@ -170,7 +173,7 @@ class AddRawResourceRecipe(CliCommand):
 class AddRecipeCommand(CliCommand):
     cmd_name = 'add-recipe'
 
-    def __init__(self, repo: RecipeRepository):
+    def __init__(self, config: MainConfig):
         parser = ArgumentParser(prog=AddRecipeCommand.cmd_name)
         parser.add_argument('-i', '--id', metavar='NAME', dest='recipe_id', help='Set recipe id.')
         parser.add_argument('-t', '--time', metavar='DURATION', dest='cycle_time',
@@ -180,9 +183,9 @@ class AddRecipeCommand(CliCommand):
         parser.add_argument('-r', '--resource', help='Resource produced by executing the recipe.', nargs='+',
                             action='extend', dest='resources')
         parser.add_argument('name', metavar='NAME', help='Name of the recipe.')
-        super().__init__(parser)
 
-        self.repository = repo
+        super().__init__(config, parser)
+        self.repository = self.main_config.repository
 
     def command_name(self) -> str:
         return AddRecipeCommand.cmd_name
@@ -306,21 +309,20 @@ class FindRecipes(CliCommand):
                 production = recipe.production(product)
                 print(f'└──⏵ {production}')
 
-    def __init__(self, repo: RecipeRepository):
+    def __init__(self, config: MainConfig):
         parser = ArgumentParser(prog=FindRecipes.cmd_name)
         parser.add_argument('-p', '--product', metavar="NAME | @<ID>", dest='product',
                             help='Find recipes by producing product')
         parser.add_argument('-n', '--name', metavar="NAME", dest='recipe_name', help='Find recipes by name')
         parser.add_argument('-i', '--id', metavar="RECIPE_ID", dest='recipe_id', help='Find recipes by id')
-        super().__init__(parser)
-
-        self.repository = repo
+        super().__init__(config, parser)
+        self.repository = self.main_config.repository
 
 
 class BuildDependencyTree(CliCommand):
     cmd_name = 'tree'
 
-    def __init__(self, repo: RecipeRepository):
+    def __init__(self, config: MainConfig):
         parser = ArgumentParser(prog=self.cmd_name)
         parser.add_argument('recipe_sel', metavar='RECIPE')
         parser.add_argument('-l', '--limit', type=int, dest='limit', default=None,
@@ -330,14 +332,14 @@ class BuildDependencyTree(CliCommand):
         parser.add_argument('-r', '--rpm', type=float, default=None,
                             help='Target RPM of the selected product. If not set, the default RPM for the product in the recipe will be used.')
 
-        super().__init__(parser)
-
-        self.repository = repo
+        super().__init__(config, parser)
+        self.repository = self.main_config.repository
 
     def command_name(self) -> str:
         return self.cmd_name
 
     def execute(self, command_str: str):
+
         args = self.parse_arguments(command_str)
         recipe_sel = ObjectStub.parse(args.recipe_sel)
         if recipe_sel is None:
@@ -355,6 +357,9 @@ class BuildDependencyTree(CliCommand):
             return
 
         if len(recipe.products) > 1:
+            if args.product is None:
+                print(f'Error: recipe "{recipe.name}" has more than one product. Please use the option "-p PRODUCT" to select the product for which the production tree should be generated.')
+                return
             product_sel = ObjectStub.parse(args.product)
             if product_sel is None:
                 print(f'Invalid product selection: {args.product}')
@@ -389,7 +394,7 @@ class BuildDependencyTree(CliCommand):
         for rtpl in aggregate.calculate_productions():
             print(f'{rtpl[0]} ({rtpl[2]:.1f}) => {rtpl[1]}  ==> {rtpl[2] * rtpl[1].base_rpm} p.m.')
 
-        graph = chaining.convert_to_graph(tree)
+        graph = chaining.convert_to_graph(tree, product)
         graph.integer_scales = True
         graph.update_scales()
         print('\nStages & stations to build:')
@@ -400,14 +405,14 @@ class BuildDependencyTree(CliCommand):
 class ListObjects(CliCommand):
     cmd_name = 'ls'
 
-    def __init__(self, repo: RecipeRepository):
+    def __init__(self, config: MainConfig):
         parser = ArgumentParser(prog=self.cmd_name)
         parser.add_argument('-p', '--product', type=str, default=None, help='Display specific resource/product.')
         parser.add_argument('-r', '--recipe', type=str, default=None, help='Display specific recipe.')
         parser.add_argument('type_name', metavar='TYPE', nargs='?', default=None,
                             choices=['r', 'recipes', 'R', 'resources'])
-        super().__init__(parser)
-        self.repository = repo
+        super().__init__(config, parser)
+        self.repository = self.main_config.repository
 
     def command_name(self) -> str:
         return ListObjects.cmd_name
@@ -458,12 +463,11 @@ class ListObjects(CliCommand):
 class RemoveResource(CliCommand):
     cmd_name = 'rm-resource'
 
-    def __init__(self, repo: RecipeRepository):
+    def __init__(self, config: MainConfig):
         parser = ArgumentParser(prog=self.cmd_name)
         parser.add_argument(metavar='NAME|ID', dest='resource_sel')
-        super().__init__(parser)
-
-        self.repository = repo
+        super().__init__(config, parser)
+        self.repository = self.main_config.repository
 
     def command_name(self) -> str:
         return self.cmd_name
@@ -498,12 +502,11 @@ class RemoveResource(CliCommand):
 class RemoveRecipe(CliCommand):
     cmd_name = 'rm-recipe'
 
-    def __init__(self, repo: RecipeRepository):
+    def __init__(self, config: MainConfig):
         parser = ArgumentParser(prog=self.cmd_name)
         parser.add_argument(metavar='NAME|ID', dest='recipe_sel')
-        super().__init__(parser)
-
-        self.repository = repo
+        super().__init__(config, parser)
+        self.repository = self.main_config.repository
 
     def command_name(self) -> str:
         return self.cmd_name
@@ -526,23 +529,21 @@ class RemoveRecipe(CliCommand):
 class SaveRepository(CliCommand):
     cmd_name = 'save'
 
-    def __init__(self, main_cfg: MainConfig):
+    def __init__(self, config: MainConfig):
         parser = ArgumentParser(prog=self.cmd_name)
         parser.add_argument('-f', '--force', dest='force', action='store_true', help='Force writing repository')
         parser.add_argument( '--recipes', metavar='FILE', dest='recipes_file', help='Custom recipes file')
         parser.add_argument( '--resources', metavar='FILE', dest='resources_file', help='Custom resources file')
-        super().__init__(parser)
-
-        self.main_cfg = main_cfg
-        self.repository = main_cfg.repository
+        super().__init__(config, parser)
+        self.repository = self.main_config.repository
 
     def command_name(self) -> str:
         return self.cmd_name
 
     def execute(self, command_str: str):
         args = self.parse_arguments(command_str)
-        std_resources_path = self.main_cfg.resources_file
-        std_recipes_path = self.main_cfg.recipes_file
+        std_resources_path = self.main_config.resources_file
+        std_recipes_path = self.main_config.recipes_file
 
         resources_path = None
         recipes_path = None
@@ -585,8 +586,8 @@ class Cli:
 
     def __init__(self, main_cfg: MainConfig):
         self.repo = main_cfg.repository
-        self.commands = [AddRecipeCommand(self.repo), AddResourceCommand(self.repo), FindRecipes(self.repo), BuildDependencyTree(self.repo),
-                         ListObjects(self.repo), AddRawResourceRecipe(self.repo), RemoveResource(self.repo), RemoveRecipe(self.repo),
+        self.commands = [AddRecipeCommand(main_cfg), AddResourceCommand(main_cfg), FindRecipes(main_cfg), BuildDependencyTree(main_cfg),
+                         ListObjects(main_cfg), AddRawResourceRecipe(main_cfg), RemoveResource(main_cfg), RemoveRecipe(main_cfg),
                          SaveRepository(main_cfg)]
         readline.parse_and_bind('tab: complete')
         readline.set_completer_delims(' ')

@@ -35,7 +35,7 @@ class PlannerController(RootController):
     def generate_chain(self, recipe: Recipe, product: Resource, rpm: float):
         tree = ProductionTree(recipe, product, rpm)
         tree.build(self.repository)
-        graph = chaining.convert_to_graph(tree)
+        graph = chaining.convert_to_graph(tree, product)
         graph.integer_scales = True
         graph.update_scales()
         self.ctl_station_plan.set_value(graph)
@@ -153,17 +153,21 @@ class StationPlanViewController(Controller):
                 rpm = resource.quantity
                 overflow = 0
                 res_consumers = []
+                is_excess = False
                 if res_id in recipe_demands:
                     overflow = rpm - recipe_demands[res_id].quantity
                     for consumer in stage_node.consumers.values():
                         if res_id in consumer.recipe.recipe.resources:
                             res_consumers.append(consumer.recipe.recipe.name)
+                elif res_id != self.graph.root_product.id:
+                    res_consumers.append("<EXCESS PRODUCT>")
+                    is_excess = True
                 consumers = ", ".join(res_consumers)
                 tv.insert(id_out, 'end', iid=out_res_id,
                           values=('', '', '',
                                   base_qt, resource.resource.name,
                                   f'{rpm:.1f}', f'{overflow:.1f}', consumers),
-                          tags=('row_product',))
+                          tags=('row_product' if not is_excess else 'row_product_excess',))
 
     def widget(self) -> 'StationPlanView':
         return self.view
@@ -225,6 +229,7 @@ class StationPlanView(ttk.Frame, View):
         self.tv_recipe_stages.tag_configure('row_io', background='#bebebe')
         self.tv_recipe_stages.tag_configure('row_resource', background='#95a3c5')
         self.tv_recipe_stages.tag_configure('row_product', background='#88cf8e')
+        self.tv_recipe_stages.tag_configure('row_product_excess', background='#ff6b6b')
 
         style = ttk.Style()
         row_font = Font(font=tk.font.nametofont(style.configure('.','font')))

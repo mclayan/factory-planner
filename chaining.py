@@ -1,6 +1,6 @@
 import typing
 from abc import ABC, abstractmethod
-from typing import Iterator
+from typing import Iterator, Optional
 
 from data import Resource, TargetedProduction, ResourceQuantity, Recipe, ScaledRecipe, ResourceQuantities
 from repository import RecipeRepository
@@ -159,10 +159,15 @@ class ProdNode(BaseNode):
         self.rpm = rpm
         self.children = []
 
-    def resolve_children(self, repository: RecipeRepository, level: int, max_level: int):
+    def resolve_children(self, repository: RecipeRepository, level: int, max_level: int, parent_recipes: set[str]):
         for dependency in self.production.for_rpm(self.rpm).resources:
             alternatives = AltNode(dependency.resource, self, self.tree)
-            recipes = repository.find_recipes_by_product(dependency.resource)
+            recipes_unfiltered = repository.find_recipes_by_product(dependency.resource)
+            recipes = []
+            for recipe in recipes_unfiltered:
+                if recipe.id not in parent_recipes:
+                    recipes.append(recipe)
+
             if len(recipes) == 0:
                 self.children.append(EndNode(dependency, self, self.tree))
                 continue
@@ -172,7 +177,9 @@ class ProdNode(BaseNode):
                 child_node = ProdNode(recipe, production, dependency.quantity, None, self.tree)
 
                 if level < max_level:
-                    child_node.resolve_children(repository, level + 1, max_level)
+                    parents = parent_recipes.copy()
+                    parents.add(self.recipe.id)
+                    child_node.resolve_children(repository, level + 1, max_level, parents)
 
                 alternatives.add(child_node)
 
@@ -219,7 +226,7 @@ class ProductionTree:
         self.root = ProdNode(root_recipe, root_recipe.production(target_product), target_rpm, None, self)
 
     def build(self, repository: RecipeRepository, max_depth: int = 15):
-        self.root.resolve_children(repository, 0, max_depth)
+        self.root.resolve_children(repository, 0, max_depth, set())
 
     def print_tree(self):
         self.root.print_node()
@@ -295,10 +302,11 @@ class GraphNode:
 
 
 class ProductionGraph:
-    __slots__ = ('nodes', 'root', 'integer_scales')
+    __slots__ = ('nodes', 'root', 'integer_scales', 'root_product')
 
-    def __init__(self, root_recipe: Recipe, scale: float):
+    def __init__(self, root_recipe: Recipe, scale: float, target_product: Optional[Resource]):
         root_node = GraphNode(ScaledRecipe(root_recipe, scale), 0)
+        self.root_product = target_product
         self.nodes: dict[str, GraphNode] = {root_recipe.id: root_node}
         self.root = root_node
         self.integer_scales = False
@@ -336,9 +344,9 @@ def _add_tree_node(graph: ProductionGraph, tree_node: BaseNode,  consumer_node: 
         pass
 
 
-def convert_to_graph(tree: ProductionTree) -> ProductionGraph:
+def convert_to_graph(tree: ProductionTree, target_product: Optional[Resource]) -> ProductionGraph:
     scale = tree.root.rpm / tree.root.production.base_rpm
-    graph = ProductionGraph(tree.root.recipe, scale)
+    graph = ProductionGraph(tree.root.recipe, scale, target_product)
     for node in tree.root:
         _add_tree_node(graph, node, graph.root, 1)
 
