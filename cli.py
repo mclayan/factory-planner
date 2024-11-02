@@ -332,6 +332,8 @@ class BuildDependencyTree(CliCommand):
         parser.add_argument('-r', '--rpm', type=float, default=None,
                             help='Target RPM of the selected product. If not set, the default RPM for the product in the recipe will be used.')
 
+        parser.add_argument('-R', '--exclude', metavar='RECIPE', dest='excluded', action='extend', nargs='+', help='Exclude the recipe from the dependency tree.')
+
         super().__init__(config, parser)
         self.repository = self.main_config.repository
 
@@ -356,9 +358,19 @@ class BuildDependencyTree(CliCommand):
             print(f'Cannot find recipe "{recipe_sel}"')
             return
 
+        exclusions = []
+        for exclusion in args.excluded:
+            excl_sel = ObjectStub.parse(exclusion)
+            if excl_sel.id is not None:
+                excl_recipe = self.repository.recipe(excl_sel.id)
+            else:
+                excl_recipe = self.repository.recipe_by_name(excl_sel.name)
+            exclusions.append(excl_recipe.id)
+
         if len(recipe.products) > 1:
             if args.product is None:
-                print(f'Error: recipe "{recipe.name}" has more than one product. Please use the option "-p PRODUCT" to select the product for which the production tree should be generated.')
+                print(f'Error: recipe "{recipe.name}" has more than one product. Please use the option "-p PRODUCT" '
+                      f'to select the product for which the production tree should be generated.')
                 return
             product_sel = ObjectStub.parse(args.product)
             if product_sel is None:
@@ -383,9 +395,9 @@ class BuildDependencyTree(CliCommand):
 
         tree = ProductionTree(recipe, product, rpm)
         if args.limit is None:
-            tree.build(self.repository)
+            tree.build(self.repository, excluded_recipes=set(exclusions))
         else:
-            tree.build(self.repository, args.limit)
+            tree.build(self.repository, args.limit, excluded_recipes=set(exclusions))
 
         print('Dependency tree:')
         tree.print_tree()

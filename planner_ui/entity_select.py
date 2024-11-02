@@ -13,7 +13,7 @@ from . import T, RootController, View
 
 from .application import Controller
 
-__all__ = ['EntitySelectController', 'EntitySelect']
+__all__ = ['EntitySelectController', 'EntitySelect', 'EntityMultiSelectController']
 
 
 class ResourceInfoVars:
@@ -191,6 +191,39 @@ class EntitySelect(ttk.Labelframe, View):
         self.info_view.grid(row=0, column=1, sticky=tk.NSEW, padx=10, pady=10)
         self.columnconfigure(1, weight=1)
 
+
+
+class EntityMultiSelectController(EntitySelectController):
+    _NONE_ID = '__NONE_ID__'
+    _NONE_NAME = '-----None-----'
+
+    def __init__(self, master, view_name: str, parent: typing.Optional[Controller], repository: RecipeRepository,
+                 entity_type: type, label_text=None, is_readonly=True,
+                 id_filter: typing.Optional[list[str]] = None):
+
+        super().__init__(master, view_name, parent, repository, entity_type, label_text, False, is_readonly, id_filter)
+        self.view.tv_entities.configure(selectmode='extended')
+        self.update_entities()
+        self.view.tv_entities.selection_set((self._NONE_ID,))
+
+    def update_entities(self):
+        self.clear_display()
+        self.view.tv_entities.insert('', 'end', id=self._NONE_ID, text=self._NONE_NAME)
+        for e_id, entity in self.entity_source.items():
+            if self.id_filter is not None:
+                if not e_id in self.id_filter:
+                    continue
+            self.view.tv_entities.insert('', 'end', id=e_id, text=entity.name)
+
+    def selected(self) -> list[Entity]:
+        entities = []
+        for selection in self.view.tv_entities.selection():
+            if selection != self._NONE_ID:
+                entities.append(self.entity_source.get(selection))
+        return entities
+
+    def value(self) -> list[Entity]:
+        return self.selected()
 
 class EntityInfo(Controller[T], ABC):
 

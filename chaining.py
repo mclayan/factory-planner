@@ -159,13 +159,13 @@ class ProdNode(BaseNode):
         self.rpm = rpm
         self.children = []
 
-    def resolve_children(self, repository: RecipeRepository, level: int, max_level: int, parent_recipes: set[str]):
+    def resolve_children(self, repository: RecipeRepository, level: int, max_level: int, parent_recipes: set[str], excluded_recipes: set[str]):
         for dependency in self.production.for_rpm(self.rpm).resources:
             alternatives = AltNode(dependency.resource, self, self.tree)
             recipes_unfiltered = repository.find_recipes_by_product(dependency.resource)
             recipes = []
             for recipe in recipes_unfiltered:
-                if recipe.id not in parent_recipes:
+                if recipe.id not in parent_recipes and recipe.id not in excluded_recipes:
                     recipes.append(recipe)
 
             if len(recipes) == 0:
@@ -179,7 +179,7 @@ class ProdNode(BaseNode):
                 if level < max_level:
                     parents = parent_recipes.copy()
                     parents.add(self.recipe.id)
-                    child_node.resolve_children(repository, level + 1, max_level, parents)
+                    child_node.resolve_children(repository, level + 1, max_level, parents, excluded_recipes)
 
                 alternatives.add(child_node)
 
@@ -225,8 +225,10 @@ class ProductionTree:
     def __init__(self, root_recipe: Recipe, target_product: Resource, target_rpm: float):
         self.root = ProdNode(root_recipe, root_recipe.production(target_product), target_rpm, None, self)
 
-    def build(self, repository: RecipeRepository, max_depth: int = 15):
-        self.root.resolve_children(repository, 0, max_depth, set())
+    def build(self, repository: RecipeRepository, max_depth: int = 15, excluded_recipes=None):
+        if excluded_recipes is None:
+            excluded_recipes = set()
+        self.root.resolve_children(repository, 0, max_depth, set(), excluded_recipes)
 
     def print_tree(self):
         self.root.print_node()

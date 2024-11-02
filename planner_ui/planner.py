@@ -1,8 +1,7 @@
 import tkinter as tk
 import tkinter.ttk as ttk
 import typing
-from operator import index
-from tkinter import StringVar
+from tkinter import StringVar, Label
 from typing import Optional
 from tkinter.font import Font
 
@@ -11,7 +10,7 @@ from chaining import ProductionGraph, ProductionTree
 from data import Recipe, Resource
 from . import Controller, RootController, T, View
 from repository import RecipeRepository
-from .entity_select import EntitySelectController, EntitySelect
+from .entity_select import EntitySelectController, EntitySelect, EntityMultiSelectController
 
 
 class PlannerController(RootController):
@@ -26,15 +25,18 @@ class PlannerController(RootController):
 
         self.ctl_product_select = EntitySelectController(self.view, 'product_sel', self, repository, Resource,
                                                          'Product', False, True, id_filter=[])
+        self.ctl_recipe_blacklist = EntityMultiSelectController(self.view, 'recipe_blacklist', self, repository, Recipe, 'Excluded Recipes', True, id_filter=None)
         self.ctl_station_plan = StationPlanViewController(self.view, 'stations', self)
         self.view.init_components(self.ctl_recipe_select.widget(), self.ctl_product_select.widget(),
+                                  self.ctl_recipe_blacklist.widget(),
                                   self.ctl_station_plan.widget())
         self.ctl_recipe_select.register_cb_sel_change(self.cb_recipe_sel_changed)
         self.ctl_product_select.register_cb_sel_change(self.cb_product_sel_changed)
 
     def generate_chain(self, recipe: Recipe, product: Resource, rpm: float):
+        excluded_recipes = set(r.id for r in self.ctl_recipe_blacklist.value())
         tree = ProductionTree(recipe, product, rpm)
-        tree.build(self.repository)
+        tree.build(self.repository, excluded_recipes=excluded_recipes)
         graph = chaining.convert_to_graph(tree, product)
         graph.integer_scales = True
         graph.update_scales()
@@ -45,7 +47,7 @@ class PlannerController(RootController):
         rpm = self.var_target_rpm.get()
         recipe = self.ctl_recipe_select.value()
         if isinstance(recipe, Recipe):
-            product = recipe.nth_product(0)
+            product = self.ctl_product_select.selected()
             self.generate_chain(recipe, product, rpm)
 
     def cb_recipe_sel_changed(self, recipe):
@@ -76,6 +78,11 @@ class PlannerController(RootController):
 
 
 class Planner(ttk.Frame, View):
+    _HELP_TEXTS = {
+        'recipe_select': 'Use this recipe as the root from which to build the production plan:',
+        'product_select': 'Root output product of the recipe:',
+        'recipe_blacklist': 'Exclude the following recipes from the calculation:'
+    }
 
     def __init__(self, master, controller: PlannerController):
         View.__init__(self, controller)
@@ -91,17 +98,37 @@ class Planner(ttk.Frame, View):
 
         self.row_components = row
         self.vw_recipe_select: Optional[EntitySelect] = None
+        self.lbl_recipe_select: Optional[Label] = None
+        self.lbl_product_select: Optional[Label] = None
+        self.lbl_recipe_blacklist: Optional[Label] = None
+
         self.vw_product_select: Optional[EntitySelect] = None
+        self.vw_blacklist_select: Optional[EntitySelect] = None
         self.vw_station_plan: Optional[StationPlanView] = None
         self.columnconfigure(index=0, weight=1)
         self.columnconfigure(index=1, weight=1)
 
-    def init_components(self, recipe_sel: EntitySelect, product_select: EntitySelect, station_plan: 'StationPlanView'):
+    def init_components(self, recipe_sel: EntitySelect, product_select: EntitySelect, blacklist_select: EntitySelect, station_plan: 'StationPlanView'):
         row = self.row_components
         self.vw_recipe_select = recipe_sel
+        # hacky but avoids extending EntitySelect
+        recipe_sel.tv_entities.grid(row=1)
+        self.lbl_recipe_select = Label(recipe_sel, text=self._HELP_TEXTS['recipe_select'])
+        self.lbl_recipe_select.grid(row=0, column=0)
+
         self.vw_product_select = product_select
+        product_select.tv_entities.grid(row=1)
+        self.lbl_product_select = Label(product_select, text=self._HELP_TEXTS['product_select'])
+        self.lbl_product_select.grid(row=0)
+
+        self.vw_blacklist_select = blacklist_select
+        blacklist_select.tv_entities.grid(row=1)
+        self.lbl_recipe_blacklist = Label(blacklist_select, text=self._HELP_TEXTS['recipe_blacklist'])
+        self.lbl_recipe_blacklist.grid(row=0)
+
         self.vw_recipe_select.grid(row=row, column=0, sticky=tk.NSEW)
         self.vw_product_select.grid(row=row, column=1, sticky=tk.NSEW, padx=10)
+        self.vw_blacklist_select.grid(row=row, column=2, sticky=tk.NSEW, padx=10)
         row += 1
 
         self.rpm_frame.grid(row=row, column=0, sticky=tk.EW, pady=10)
@@ -109,7 +136,7 @@ class Planner(ttk.Frame, View):
         row += 1
 
         self.vw_station_plan = station_plan
-        self.vw_station_plan.grid(row=row, column=0, columnspan=2, sticky=tk.NSEW)
+        self.vw_station_plan.grid(row=row, column=0, columnspan=3, sticky=tk.NSEW)
         self.rowconfigure(index=row, weight=1)
 
 
