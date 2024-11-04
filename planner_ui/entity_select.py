@@ -118,15 +118,15 @@ class EntitySelectController(RootController[Entity]):
     def write_entity(self, entity: Entity):
         orig_entity = self.selected()
         if orig_entity is None:
-            print(f'WARN: can\'t update entity if none is selected!')
+            self.logger.warn(f'can\'t update entity if none is selected!')
             return
 
         if type(entity) != self.entity_type:
-            print(f'WARN: write_entity called with type={type(entity)} but controller manages type={self.entity_type}!')
+            self.logger.warn(f'write_entity called with type={type(entity)} but controller manages type={self.entity_type}!')
             return
 
         if self.repository is None:
-            print(f'ERROR: cannot update entity because repository is None!')
+            self.logger.error(f'cannot update entity because repository is None!')
             return
         result = self.repository.update_entity(orig_entity.id, entity)
         if result:
@@ -151,14 +151,14 @@ class EntitySelectController(RootController[Entity]):
         else:
             sel_id = None
             if type(val) != self.entity_type:
-                print(f'WARN: set_value called with type={type(val)} but controller manages type={self.entity_type}!')
+                self.logger.warn(f'set_value called with type={type(val)} but controller manages type={self.entity_type}!')
                 return
             elif val.id in self.entity_source:
                 sel_id = val.id
             elif self.dummy_entity is not None and self.dummy_entity.id == val.id:
                 sel_id = self.dummy_entity.id
         if sel_id is None:
-            print(f'WARN: requested item "{val}" is not in repository!')
+            self.logger.warn(f'requested item "{val}" is not in repository!')
         else:
             self.view.tv_entities.selection_set(sel_id)
             self.view.tv_entities.see(sel_id)
@@ -171,7 +171,7 @@ class EntitySelectController(RootController[Entity]):
             else:
                 return False
         except Exception as e:
-            print(f'ERROR: {e}')
+            self.logger.error(f'ERROR: {e}')
             raise e
 
 
@@ -237,7 +237,6 @@ class EntityInfo(Controller[T], ABC):
         self.listeners_attr_change.append(cb)
 
     def cb_attr_change(self, *args):
-        #print(f'{self}: text changed: {args}')
         for listener in self.listeners_attr_change:
             listener()
 
@@ -427,7 +426,7 @@ class RecipeAttrController(EntityInfo[Recipe]):
             elif not self.read_only:
                 self.view.en_source_name.configure(state='normal')
         else:
-            print(f'WARN: {self}: invalid value for this type: {new_val}')
+            self.logger.warn(f'{self}: invalid value for this type: {new_val}')
 
     def cb_edit_cycle_time(self):
         ct_new = self.var_cycle_time.get()
@@ -571,7 +570,6 @@ class ResQtSelectController(Controller[tuple[ResourceQuantity, float]]):
         self.listeners_sel_change.append(cb)
 
     def cb_selection_change(self, event):
-        #print(f'{self}: selected changed to {self.view.tv_res_quantities.selection()} (event={event})')
         for listener in self.listeners_sel_change:
             listener(self.view.tv_res_quantities.selection())
 

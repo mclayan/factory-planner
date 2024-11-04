@@ -1,3 +1,4 @@
+import logging
 import tkinter as tk
 from abc import ABC, abstractmethod
 import typing
@@ -6,6 +7,7 @@ __all__ = ['Controller', 'RootController', 'T']
 
 from collections.abc import Callable
 
+from config import MainConfig
 from repository import RecipeRepository
 
 T = typing.TypeVar('T')
@@ -58,6 +60,8 @@ class Controller(typing.Generic[T], ABC):
             raise ViewIdException(view_id)
         self.__INSTANCES[id_str] = self
         self.view_id = view_id
+        self.logger = logging.getLogger(view_id.str_ctl())
+        self.logger.setLevel(MainConfig().log_level())
 
     @abstractmethod
     def widget(self) -> tk.Widget:
@@ -84,7 +88,6 @@ class Controller(typing.Generic[T], ABC):
         for cb, et in self.__CB_ENTITIES_CHANGED:
             if et is None or et == entity_type:
                 cb()
-
 
 class RootController(Controller[T], ABC):
 

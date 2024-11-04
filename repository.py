@@ -1,4 +1,5 @@
 import json
+import logging
 import re
 import sys
 import typing
@@ -24,9 +25,10 @@ class InvalidDataError(BaseException):
 class RecipeRepository:
     __RX_ID = re.compile('([a-z0-9]+([a-z0-9]|_)*)')
 
-    __slots__=('resources', 'recipes', 'mod_recipes', 'mod_resources')
+    __slots__=('logger', 'resources', 'recipes', 'mod_recipes', 'mod_resources')
 
     def __init__(self):
+        self.logger = logging.getLogger(self.__class__.__name__)
         self.resources: dict[str, Resource] = dict()
         self.recipes: dict[str, Recipe] = dict()
         self.mod_recipes = False
@@ -128,6 +130,7 @@ class RecipeRepository:
         return results
 
     def update_recipe(self, recipe: Recipe):
+        self.logger.debug(f'updating recipe {recipe}')
         old = self.recipe(recipe.id)
         if old is None:
             self.add_recipe(recipe, False)

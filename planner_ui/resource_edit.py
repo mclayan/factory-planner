@@ -62,7 +62,7 @@ class  ResourceEditController(RootController[Resource]):
             self.notify_entities_changed(Resource)
             return True
         except Exception as e:
-            print(f'{self}: failed to update resource {resource}:\n{e}')
+            self.logger.error(f'failed to update resource {resource}:\n{e}')
             return False
 
 

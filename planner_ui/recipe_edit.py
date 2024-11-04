@@ -4,26 +4,28 @@ from tkinter import ttk
 import typing
 from typing import Optional, Callable
 
+from config import MainConfig
 from data import Recipe, Entity, ResourceQuantity, Resource, ResourceQuantities
 from planner_ui import RootController, T, entity_select, Controller, add_unimplemented_label
 from planner_ui.entity_select import ResQtSelectController, EntitySelect, EntitySelectController, ResQtSelect
 from repository import RecipeRepository
 
 
-
 class ResourceQuantityEditController(Controller[tuple[ResourceQuantities, float]]):
 
-    def __init__(self, master, name: str, parent: typing.Optional[Controller], repository: RecipeRepository, c0_name: str, label_text: str):
+    def __init__(self, master, name: str, parent: typing.Optional[Controller], repository: RecipeRepository,
+                 c0_name: str, label_text: str):
         super().__init__(name, parent)
         self.var_quantity = tk.StringVar()
 
         self.view = ResourceQuantityEdit(master, self, label_text)
         self.res_qt_select_ctl = ResQtSelectController(self.view, 'resource_qt_select', self, c0_name)
-        self.resource_select_ctl = EntitySelectController(self.view, 'resource_select', self, repository, entity_type=Resource, is_readonly=True)
+        self.resource_select_ctl = EntitySelectController(self.view, 'resource_select', self, repository,
+                                                          entity_type=Resource, is_readonly=True)
         self.listeners_change = []
         self.view.init_components()
 
-        self.view.sb_quantity.configure(command=lambda: self.cb_qt_attr_change())
+        self.view.sb_quantity.configure(command=lambda: self.cb_qt_attr_change(), from_=0.0, to=9999.9, increment=1.0)
         self.res_qt_select_ctl.register_selection_change(self.cb_res_qt_sel_change)
 
     def widget(self) -> tk.Widget:
@@ -41,11 +43,13 @@ class ResourceQuantityEditController(Controller[tuple[ResourceQuantities, float]
         self.res_qt_select_ctl.set_value(val)
         self.var_quantity.set('')
 
-    def cb_qt_attr_change(self):
+    def cb_qt_attr_change(self, *args):
+        new_qt = float(self.var_quantity.get())
         selected_qt = self.res_qt_select_ctl.value()
-        selected_qt[0].quantity = float(self.var_quantity.get())
+        differs = selected_qt[0].quantity != new_qt
         for listener in self.listeners_change:
-            listener()
+            listener(differs)
+        return new_qt
 
     def cb_resource_change(self):
         self.resource_select_ctl.set_value(None)
@@ -65,7 +69,6 @@ class ResourceQuantityEditController(Controller[tuple[ResourceQuantities, float]
 
     def register_qt_attr_change(self, cb: Callable):
         self.listeners_change.append(cb)
-
 
 
 class ResourceQuantityEdit(ttk.Labelframe):
@@ -100,9 +103,12 @@ class RecipeEditController(RootController[Recipe]):
         super().__init__(name, parent, repository)
         self.is_mod = False
         self.view = RecipeEditView(master, self)
-        self.recipe_select_ctl = entity_select.EntitySelectController(self.view, 'recipe_select', self, repository, Recipe, 'Recipe', True, False)
-        self.products_ctl = ResourceQuantityEditController(self.view, 'products_qt_edit', self, repository, 'Resource', 'Resources')
-        self.resources_ctl = ResourceQuantityEditController(self.view, 'resources_qt_edit', self, repository, 'Product', 'Products')
+        self.recipe_select_ctl = entity_select.EntitySelectController(self.view, 'recipe_select', self, repository,
+                                                                      Recipe, 'Recipe', True, False)
+        self.resources_ctl = ResourceQuantityEditController(self.view, 'resources_qt_edit', self, repository, 'Product',
+                                                            'Resources')
+        self.products_ctl = ResourceQuantityEditController(self.view, 'products_qt_edit', self, repository, 'Resource',
+                                                           'Products')
 
         self.view.init_components()
         self.recipe_select_ctl.register_cb_sel_change(self.cb_recipe_sel_change)
@@ -110,7 +116,6 @@ class RecipeEditController(RootController[Recipe]):
         self.resources_ctl.register_qt_attr_change(self.cb_attr_change)
         self.products_ctl.register_qt_attr_change(self.cb_attr_change)
         self.view.btn_save.configure(command=lambda: self.cb_save())
-
 
     def widget(self) -> tk.Widget:
         return self.view
@@ -122,7 +127,7 @@ class RecipeEditController(RootController[Recipe]):
         pass
 
     def cb_attr_change(self, is_mod: bool):
-        print(f'{self}: attributes changed: is_mod={is_mod}')
+        self.logger.debug(f'{self}: attributes changed: is_mod={is_mod}')
         if is_mod and not self.is_mod:
             self.view.btn_save.configure(state='normal')
         elif self.is_mod and not is_mod:
@@ -148,7 +153,8 @@ class RecipeEditController(RootController[Recipe]):
                 if not product_quantities.is_equal(recipe.products):
                     recipe.products = product_quantities
                 self.repository.update_recipe(recipe)
-                self.is_mod = False
+                #self.is_mod = False
+                self.cb_attr_change(False)
 
 
 class RecipeEditView(ttk.Frame):
@@ -174,13 +180,13 @@ class RecipeEditView(ttk.Frame):
         row += 1
 
         if self.resources_view is None:
-            self.resources_view = self.controller.products_ctl.widget()
+            self.resources_view = self.controller.resources_ctl.widget()
             self.resources_view.grid(row=row, column=0, sticky=tk.NSEW)
             self.rowconfigure(row, weight=1)
         row += 1
 
         if self.products_view is None:
-            self.products_view = self.controller.resources_ctl.widget()
+            self.products_view = self.controller.products_ctl.widget()
             self.products_view.grid(row=row, column=0, sticky=tk.NSEW)
             self.rowconfigure(row, weight=1)
         row += 1

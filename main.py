@@ -1,5 +1,7 @@
 import argparse
+import logging
 import os.path
+import sys
 
 import planner_ui
 import planner_ui.application
@@ -37,6 +39,8 @@ def _main():
     parser.add_argument('--theme', dest='gui_theme', help='GUI theme to use. Defaults to \'classic\'.', default='classic')
     parser.add_argument('--productivity', dest='productivity_look', help='Improve the GUI look towards a traditional productivity design.', action='store_true')
     args = parser.parse_args()
+    logging.basicConfig(stream=sys.stderr, level=logging.DEBUG if args.is_debug else logging.INFO)
+    logging.root.debug("initialized logging with level=debug")
 
     recipes_file = f'{args.data_dir}/{args.recipes_name}'
     resources_file = f'{args.data_dir}/{args.resources_name}'
