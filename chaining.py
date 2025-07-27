@@ -334,6 +334,24 @@ class ProductionGraph:
         result.sort(key=lambda node: node.level)
         return result
 
+    def get_total_resources(self) -> ResourceQuantities:
+        totals = ResourceQuantities([])
+        for node in self.nodes.values():
+            recipe = node.recipe.scaled_components()
+            for resource in recipe.resources:
+                totals.add(resource)
+        return totals
+
+    def get_total_products(self) -> ResourceQuantities:
+        totals = ResourceQuantities([])
+        for node in self.nodes.values():
+            recipe = node.recipe
+            recipe_components = recipe.scaled_components()
+            for product in recipe_components.products:
+                totals.add(product)
+        return totals
+
+
 
 def _add_tree_node(graph: ProductionGraph, tree_node: BaseNode,  consumer_node: GraphNode, level: int):
     if isinstance(tree_node, ProdNode):

@@ -65,7 +65,7 @@ class RecipeRepository:
             raise DuplicateKeyError(f'duplicate recipe id: {recipe.id}')
 
     def load_resource(self, d: dict):
-        resource = Resource(d['name'], d['id'], d.get('raw', False))
+        resource = Resource(d['name'], d['id'], d.get('raw', False), d.get('tags', None))
         self.add_resource(resource, True)
 
     def load_recipe(self, d: dict):
@@ -74,12 +74,14 @@ class RecipeRepository:
         cycle_time = d['cycle_secs']
         products = [ResourceQuantity(self.resource(res['id']), res['quantity']) for res in d['products']]
         resources = [ResourceQuantity(self.resource(res['id']), res['quantity']) for res in d['resources']]
+        tags = d.get('tags')
         recipe = Recipe(
             name,
             id,
             resources,
             products,
-            timedelta(seconds=cycle_time)
+            timedelta(seconds=cycle_time),
+            tags
         )
         if 'source_name' in d:
             recipe.source_name = d['source_name']

@@ -35,7 +35,8 @@ class EntitySelectController(RootController[Entity]):
     DUMMY_ID = '<<dummy_id>>'
 
     def __init__(self, master, view_name: str, parent: typing.Optional[Controller], repository: RecipeRepository,
-                 entity_type: type, label_text=None, show_info=False, is_readonly=True, id_filter: typing.Optional[list[str]]=None):
+                 entity_type: type, label_text=None, show_info=False, is_readonly=True, id_filter: typing.Optional[list[str]]=None,
+                 ):
         super().__init__(view_name, parent, repository)
         self.id_filter = id_filter
         self.entity_type = entity_type
@@ -70,7 +71,8 @@ class EntitySelectController(RootController[Entity]):
             if self.id_filter is not None:
                 if not e_id in self.id_filter:
                     continue
-            self.view.tv_entities.insert('', 'end', id=e_id, text=entity.name)
+            tags = tuple([f'et_{t}' for t in entity.tags])
+            self.view.tv_entities.insert('', 'end', id=e_id, text=entity.name, tags=tags)
         if self.dummy_entity is not None:
             self.view.tv_entities.insert('', 'end', iid=self.dummy_entity.id, text=self.dummy_entity.name)
 
@@ -213,7 +215,8 @@ class EntityMultiSelectController(EntitySelectController):
             if self.id_filter is not None:
                 if not e_id in self.id_filter:
                     continue
-            self.view.tv_entities.insert('', 'end', id=e_id, text=entity.name)
+            tags = tuple([f'et_{t}' for t in entity.tags])
+            self.view.tv_entities.insert('', 'end', id=e_id, text=entity.name, tags=tags)
 
     def selected(self) -> list[Entity]:
         entities = []

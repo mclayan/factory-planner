@@ -29,6 +29,8 @@ def _main():
                         help='Name of the file for storing recipes.')
     parser.add_argument('-c', '--resources', metavar='NAME', dest='resources_name', default='resources.json',
                         help='Name of the file for storing resources.')
+    parser.add_argument('--gui-config', metavar='NAME', dest='gui_cfg_name', default='gui.json',
+                        help='Name of the file for loading GUI configurations.')
     parser.add_argument('--gui', dest='op_mode', help='Use the graphical user interface.', action='store_const',
                         const='gui')
     parser.add_argument('--cli', dest='op_mode', help='Use the command line interface.', action='store_const',
@@ -44,6 +46,10 @@ def _main():
 
     recipes_file = f'{args.data_dir}/{args.recipes_name}'
     resources_file = f'{args.data_dir}/{args.resources_name}'
+    gui_config_file = f'{args.data_dir}/{args.gui_cfg_name}'
+
+    if not os.path.isfile(gui_config_file):
+        gui_config_file = None
 
     print('Using:')
     print(f'  recipes:   {recipes_file}')
@@ -65,7 +71,7 @@ def _main():
             return
         repo = repository.load_repository(resources_file, recipes_file)
 
-    config = MainConfig(resources_file, recipes_file, repo, args.gui_theme)
+    config = MainConfig(resources_file, recipes_file, repo, args.gui_theme, gui_config_file)
     if args.is_debug:
         config.debug = True
 

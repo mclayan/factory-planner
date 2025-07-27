@@ -7,9 +7,10 @@ from typing import Self
 
 class Entity(ABC):
 
-    def __init__(self, name: str, entity_id: str):
+    def __init__(self, name: str, entity_id: str, tags=None):
         self.name = name
         self.id = entity_id
+        self.tags = tags or []
 
     def get_name(self) -> str:
         return self.name
@@ -20,8 +21,8 @@ class Entity(ABC):
 
 class Resource(Entity):
 
-    def __init__(self, name: str, res_id: str, is_raw: bool=False):
-        super().__init__(name, res_id)
+    def __init__(self, name: str, res_id: str, is_raw: bool=False, tags=None):
+        super().__init__(name, res_id, tags)
         self.is_raw = is_raw
 
     def __str__(self):
@@ -112,6 +113,13 @@ class ResourceQuantities:
         cp._inner = copy.copy(self._inner)
         return cp
 
+    def get_quantity(self, resource, default=0):
+        key = resource.get_id() if isinstance(resource, Entity) else resource
+        if key in self._inner:
+            return self._inner.get(key).quantity
+        else:
+            return default
+
     def is_equal(self, other):
         if not isinstance(other, ResourceQuantities):
             return False
@@ -186,8 +194,8 @@ class RecipeComponents:
 
 class Recipe(Entity):
 
-    def __init__(self, name: str, recipe_id: str, resources: list[ResourceQuantity], products: list[ResourceQuantity], cycle_time: timedelta):
-        super().__init__(name, recipe_id)
+    def __init__(self, name: str, recipe_id: str, resources: list[ResourceQuantity], products: list[ResourceQuantity], cycle_time: timedelta, tags=None):
+        super().__init__(name, recipe_id, tags)
         self.cycle_time = cycle_time.total_seconds()
         self.resources = ResourceQuantities([r for r in resources])
         self.products = ResourceQuantities([p for p in products])

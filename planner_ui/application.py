@@ -7,7 +7,7 @@ from config import MainConfig
 from . import Controller, AppGlobals, add_unimplemented_label
 from .entity_select import EntitySelectController
 from repository import RecipeRepository
-from .planner import Planner, PlannerController
+from .planner import PlannerView, PlannerController
 from .recipe_edit import RecipeEditController
 from .resource_edit import ResourceEditController
 
