@@ -1,3 +1,4 @@
+import sys
 import tkinter as tk
 import tkinter.ttk as ttk
 import typing
@@ -7,9 +8,10 @@ from tkinter.font import Font
 
 import chaining
 import config
-import data
+import util
 from chaining import ProductionGraph, ProductionTree
 from data import Recipe, Resource
+from util import ProductionGraphModel
 from . import Controller, RootController, T, View
 from repository import RecipeRepository
 from .entity_select import EntitySelectController, EntitySelect, EntityMultiSelectController
@@ -19,6 +21,7 @@ class PlannerController(RootController):
 
     def __init__(self, master, v_id: str, parent: typing.Optional[typing.Self], repository: RecipeRepository):
         super().__init__(v_id, parent, repository)
+        self.current_graph: Optional[ProductionGraphModel] = None
         self.var_target_rpm = tk.DoubleVar()
         self.var_filter_raw_recipes = tk.BooleanVar()
 
@@ -31,7 +34,8 @@ class PlannerController(RootController):
         self.ctl_recipe_blacklist = EntityMultiSelectController(self.view, 'recipe_blacklist', self, repository, Recipe, 'Excluded Recipes', True, id_filter=None)
         self.ctl_station_plan = StationPlanViewController(self.view, 'stations', self)
         self.ctl_plan_summary = PlanSummaryController(self.view, 'plan_summary', self, repository=repository)
-        self.view.init_components(self.ctl_recipe_select.widget(), self.ctl_product_select.widget(),
+        self.view.init_components(self.ctl_recipe_select.widget(),
+                                  self.ctl_product_select.widget(),
                                   self.ctl_recipe_blacklist.widget(),
                                   self.ctl_station_plan.widget(),
                                   self.ctl_plan_summary.widget())
@@ -51,8 +55,10 @@ class PlannerController(RootController):
         graph.integer_scales = True
         graph.update_scales()
         graph_model = ProductionGraphModel(graph)
+        self.current_graph = graph_model
         self.ctl_station_plan.set_value(graph_model)
         self.ctl_plan_summary.set_value(graph_model)
+        self.view.btn_print.configure(state='active')
 
     def cb_btn_generate(self, *args):
         self.ctl_station_plan.clear_display()
@@ -62,6 +68,10 @@ class PlannerController(RootController):
         if isinstance(recipe, Recipe):
             product = self.ctl_product_select.selected()
             self.generate_chain(recipe, product, rpm)
+
+    def cb_btn_print(self, *args):
+        if self.current_graph is not None:
+            util.generate_report(sys.stdout, self.current_graph)
 
     def cb_recipe_sel_changed(self, recipe):
         if isinstance(recipe, Recipe):
@@ -111,7 +121,11 @@ class PlannerView(ttk.Frame, View):
         self.ckb_exclude_raw = tk.Checkbutton(self.frame_config, variable=controller.var_filter_raw_recipes, text='Exclude Raw Resource Recipes')
         self.ckb_exclude_raw.grid(row=0, column=2, sticky=tk.NW)
 
-        self.btn_generate = tk.Button(self, text='Generate', command=controller.cb_btn_generate, state='disabled')
+        self.frame_buttons = tk.Frame(self)
+        self.btn_generate = tk.Button(self.frame_buttons, text='Generate', command=controller.cb_btn_generate, state='disabled')
+        self.btn_generate.grid(row=0, sticky=tk.NSEW)
+        self.btn_print = tk.Button(self.frame_buttons, text='Print Plan', command=controller.cb_btn_print, state='disabled')
+        self.btn_print.grid(row=1, sticky=tk.NSEW)
 
         self.row_components = row
         self.vw_recipe_select: Optional[EntitySelect] = None
@@ -159,43 +173,18 @@ class PlannerView(ttk.Frame, View):
         row += 1
 
         self.frame_config.grid(row=row, column=0, sticky=tk.EW, pady=10)
-        self.btn_generate.grid(row=row, column=1, padx=10)
+        self.frame_buttons.grid(row=row, column=1,  padx=10)
+        row += 1
+        separator = ttk.Separator(self, orient="horizontal")
+        separator.grid(row=row, column=0, columnspan=3, sticky=tk.NSEW, pady=15)
         row += 1
 
         self.vw_station_plan = station_plan
         self.vw_station_plan.grid(row=row, column=0, columnspan=2, sticky=tk.NSEW)
         self.vw_summary = plan_summary
-        self.vw_summary.grid(row=row, column=2, sticky=tk.NSEW)
+        self.vw_summary.grid(row=row, column=2, sticky=tk.NS, padx=10)
         self.rowconfigure(index=row, weight=1)
 
-
-class ProductionGraphModel:
-
-    def __init__(self, graph: ProductionGraph):
-        self.nodes = graph.as_list()
-        self.graph = graph
-        self.total_resources = data.ResourceQuantities([])
-        self.total_products = data.ResourceQuantities([])
-        self.product_overflow = data.ResourceQuantities([])
-        self._update_totals()
-
-    def _update_totals(self):
-        self.total_resources = self.graph.get_total_resources()
-        self.total_products = self.graph.get_total_products()
-
-        for product in self.total_products:
-            if not product.resource is self.graph.root_product:
-                production = product.quantity
-                demand = self.total_resources.get_quantity(product.resource, 0)
-                if demand < production:
-                    self.product_overflow.add(data.ResourceQuantity(product.resource, production - demand))
-
-    def get_raw_totals(self) -> data.ResourceQuantities:
-        result = data.ResourceQuantities([])
-        for t in self.total_resources:
-            if t.resource.is_raw:
-                result.add(t)
-        return result
 
 class StationPlanViewController(Controller):
 
@@ -218,7 +207,7 @@ class StationPlanViewController(Controller):
             tv.insert(recipe_id, 'end', iid=id_in, values=('', 'IN'), open=True, tags=('row_io',))
             tv.insert(recipe_id, 'end', iid=id_out, values=('', 'OUT'), open=True, tags=('row_io',))
             recipe_components = stage_node.recipe.scaled_components()
-            recipe_demands = stage_node.resource_demand()
+            #recipe_demands = stage_node.resource_demand()
 
             if len(recipe.resources) == 0:
                 tv.insert(id_in, 'end', iid=f'{recipe_id}_raw', values=('', '', '', '', recipe.source_name))
@@ -238,8 +227,7 @@ class StationPlanViewController(Controller):
                 overflow = self.graph.product_overflow.get_quantity(resource.resource, 0)
                 res_consumers = []
                 is_excess = False
-                if res_id in recipe_demands:
-                    #overflow = rpm - recipe_demands[res_id].quantity
+                if res_id in self.graph.total_resources:
                     for consumer in stage_node.consumers.values():
                         if res_id in consumer.recipe.recipe.resources:
                             res_consumers.append(consumer.recipe.recipe.name)
@@ -339,6 +327,8 @@ class StationPlanView(ttk.Frame, View):
 class PlanSummaryController(RootController):
     CATEGORY_NONE = ''
     CATEGORY_TOTAL_RAW = 'Total Raw Resources'
+    CATEGORY_OVERFLOW = 'Overflow (overproduction)'
+    CATEGORY_EXCESS = 'Excess (side or waste products)'
     TAG_CATEGORY = 'row_category'
     TAG_ENTRY = 'row_entry'
 
@@ -362,6 +352,8 @@ class PlanSummaryController(RootController):
     def update_entries(self):
         self.add_summary_raw_materials()
         self.add_summary_special_resources()
+        self.add_summary_overflow()
+        self.add_summary_excess()
 
     def clear_display(self):
         items = self.view.tv_entries.get_children()
@@ -397,6 +389,18 @@ class PlanSummaryController(RootController):
                     if special_tag_cfg.tag_val in product.resource.tags and product.resource != self.current_graph.graph.root_product:
                         self.add_entry(category, product.resource.get_id(), node.recipe.recipe.get_name(), '')
 
+    def add_summary_overflow(self):
+        for res_qt in self.current_graph.product_overflow:
+            res_id = res_qt.resource.get_id()
+            res_name = res_qt.resource.get_name()
+            self.add_entry(self.CATEGORY_OVERFLOW, f'overflow_{res_id}', res_name, f'{res_qt.quantity:.1f}')
+
+    def add_summary_excess(self):
+        for res_qt in self.current_graph.excess_products:
+            res_id = res_qt.resource.get_id()
+            res_name = res_qt.resource.get_name()
+            self.add_entry(self.CATEGORY_EXCESS, f'excess_{res_id}', res_name, f'{res_qt.quantity:.1f}')
+
 
 class PlanSummaryView(tk.Frame, View):
 
@@ -414,6 +418,8 @@ class PlanSummaryView(tk.Frame, View):
         self.tv_entries.heading('value', text='', )
 
         self.tv_entries.grid(row=row, column=0, sticky=tk.NSEW)
+        self.grid_rowconfigure(0, weight=1)
+        row += 1
 
         style = ttk.Style()
         row_font = Font(font=tk.font.nametofont(style.configure('.', 'font')))
