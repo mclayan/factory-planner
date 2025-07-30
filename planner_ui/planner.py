@@ -13,6 +13,7 @@ from chaining import ProductionGraph, ProductionTree
 from data import Recipe, Resource
 from util import ProductionGraphModel
 from . import Controller, RootController, T, View
+import print
 from repository import RecipeRepository
 from .entity_select import EntitySelectController, EntitySelect, EntityMultiSelectController
 
@@ -71,7 +72,9 @@ class PlannerController(RootController):
 
     def cb_btn_print(self, *args):
         if self.current_graph is not None:
-            util.generate_report(sys.stdout, self.current_graph)
+            print.generate_text_report(sys.stdout, self.current_graph)
+            with open('plan.html', 'w') as out_file:
+                print.generate_html_report(out_file, self.current_graph)
 
     def cb_recipe_sel_changed(self, recipe):
         if isinstance(recipe, Recipe):

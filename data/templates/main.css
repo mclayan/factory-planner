@@ -1,0 +1,129 @@
+@font-face {
+    font-family: "3270 Regular";
+    font-style: normal;
+    src: url("resources/font/3270-Regular.woff") format('woff');
+}
+
+@font-face {
+    font-family: "3270 Condensed Regular";
+    font-style: normal;
+    src: url("resources/font/3270Condensed-Regular.woff") format('woff');
+}
+
+body {
+    font-family: "3270 Regular", monospace;
+
+}
+
+.plan-header {
+    font-family: "3270 Regular", monospace;
+    font-weight: bold;
+}
+
+.plan-header-content {
+    display: flex;
+}
+
+.plan-header-content .header-primer {
+    display: flex;
+    flex: auto;
+}
+
+.plan-header-content .header-primer div {
+    padding-right: 1rem;
+}
+
+/* ----------------- notes -------------------------- */
+.plan-notes {
+
+}
+
+.notes-header {
+    font-weight: bold;
+}
+
+.notes-body {
+    display: grid;
+    grid-template-columns: max-content auto;
+    grid-column-gap: 1rem;
+    padding-left: 1rem;
+}
+
+.notes-item {
+    display: grid;
+
+}
+
+
+.notes-list {
+    display: grid;
+    grid-template-columns: max-content auto;
+    column-gap: 0.5rem;
+    padding-left: 2rem;
+}
+
+/* ----------------- recipe ------------------------- */
+
+.recipe-container {
+    display: grid;
+    grid-column-gap: 0.5rem;
+}
+
+.recipe-container div {
+    display: grid;
+    grid-column-gap: 0.5rem;
+}
+
+.recipe-header {
+    display: grid;
+    grid-template-columns: max-content max-content auto;
+}
+
+.recipe-header .h-ind {
+    display: grid;
+    font-weight: bold;
+}
+
+.recipe-header .h-ind2 {
+    display: grid;
+    font-weight: bold;
+    padding-left: 1rem;
+}
+
+.recipe-body-container {
+    display: grid;
+    font-weight: bold;
+    padding-left: 2rem;
+    grid-template-columns: auto;
+}
+
+.recipe-body {
+    display: grid;
+    font-weight: normal;
+    padding-left: 1rem;
+    padding-bottom: 1rem;
+    grid-template-columns: max-content max-content max-content auto;
+}
+
+.recipe-body div {
+    display: flex;
+}
+
+.recipe-body .dir {
+    font-weight: bold;
+    justify-content: left;
+}
+
+.recipe-body .qt {
+    justify-content: end;
+}
+
+.recipe-body .sum-sep {
+    grid-column: 1 / 5;
+    width: 1px;
+    text-wrap: nowrap;
+}
+
+.side-product {
+    font-weight: bold;
+}

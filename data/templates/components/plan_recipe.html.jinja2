@@ -1,0 +1,43 @@
+{% macro recipe_container(recipe) %}
+    <div class="recipe-container">
+        <p></p>
+        <div class="recipe-header">
+            <div class="h-ind">RECIPE NAME</div>
+            <div class="h-ind">&gt;&gt;</div>
+            <div>{{ recipe.name }}</div>
+
+            <div class="h-ind2">SCALE</div>
+            <div class="h-ind">&gt;&gt;</div>
+            <div>{{ recipe.scale | int }}</div>
+
+            <div class="h-ind2">CONSUMERS</div>
+            <div class="h-ind">&gt;&gt;</div>
+            <div>{{ recipe.consumers.join(', ') }}</div>
+
+        </div>
+        <div class="recipe-body-container">
+            <div>RECIPE:</div>
+            <div class="recipe-body">
+                {% for resource in recipe.resources %}
+                    <div class="dir">IN:</div>
+                    <div class="qt">{{ resource.quantity }}</div>
+                    <div>x</div>
+                    <div>{{ resource.name }}</div>
+                {% endfor %}
+
+                <div class="sum-sep">---------------------------------------</div>
+
+                {% for product in recipe.products %}
+                    <div class="dir">OUT:</div>
+                    <div class="qt">{{ product.quantity }}</div>
+                    <div>x</div>
+                    {% if product.is_excess %}
+                        <div>{{ product.name }} **SIDE PRODUCT**</div>
+                    {% else %}
+                        <div>{{ product.name }}</div>
+                    {% endif %}
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+{% endmacro %}

@@ -1,0 +1,83 @@
+{% macro recipe_container(recipe) -%}
+    <div class="recipe-container">
+        <p></p>
+        <div class="recipe-header">
+            <div class="h-ind">RECIPE NAME</div>
+            <div class="h-ind">&gt;&gt;</div>
+            <div>{{ recipe.name }}</div>
+
+            <div class="h-ind2">SCALE</div>
+            <div class="h-ind">&gt;&gt;</div>
+            <div>{{ "{:04}".format(recipe.scale) }}</div>
+
+            <div class="h-ind2">CONSUMERS</div>
+            <div class="h-ind">&gt;&gt;</div>
+            <div>{{ recipe.consumers | join(', ') }}</div>
+
+        </div>
+        <div class="recipe-body-container">
+            <div>RECIPE:</div>
+            <div class="recipe-body">
+                {% for resource in recipe.resources %}
+                    <div class="dir">IN:</div>
+                    <div class="qt">{{ "{:04}".format(resource.quantity) }}</div>
+                    <div>x</div>
+                    <div>{{ resource.name }}</div>
+                {% endfor %}
+
+                <div class="sum-sep">---------------------------------------</div>
+
+                {% for product in recipe.products %}
+                    <div class="dir">OUT:</div>
+                    <div class="qt">{{ "{:04}".format(product.quantity) }}</div>
+                    <div>x</div>
+                    {% if product.is_excess %}
+                        <div >{{ product.name }} <div class="side-product">**SIDE PRODUCT**</div></div>
+                    {% else %}
+                        <div>{{ product.name }}</div>
+                    {% endif %}
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+{%- endmacro %}
+
+{% macro plan_header(plan_date, recipe_name) -%}
+    <div class="plan-header">
+        <div class="plan-header-content">
+            <div class="header-primer">
+                <div>PRODUCTION PLAN</div>
+                <div>|</div>
+                <div>DATE: {{ plan_date }}</div>
+                <div>|</div>
+            </div>
+            <div>{{ recipe_name }}</div>
+        </div>
+        <div style="overflow: clip">
+            ====================================================================================================================================================================
+        </div>
+    </div>
+{%- endmacro %}
+
+{% macro plan_notes(note_list) -%}
+    <div class="plan-notes">
+        <div class="notes-header">**********************NOTES**********************</div>
+        <div class="notes-body">
+            {% for note in note_list %}
+                {% if note[0] == 'kv' %}
+                    <div>{{ note[1] }}</div>
+                    <div>{{ note[2] }}</div>
+                {% elif note[0] == 'l' %}
+                    <div>{{ note[1] }}</div>
+                    <div></div>
+                    <div class="notes-list">
+                        {% for list_item in note[2] %}
+                            <div>{{ list_item[0] }}</div>
+                            <div>{{ list_item[1] }}</div>
+                        {% endfor %}
+                    </div>
+                {% endif %}
+            {% endfor %}
+        </div>
+    </div>
+{%- endmacro %}

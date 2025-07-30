@@ -1,0 +1,8 @@
+{
+  "resource_tag_special": {
+    "tag": "project_part",
+    "display_name": "Project Parts",
+    "bg": "LightGoldenrod3",
+    "fg": null
+  }
+}

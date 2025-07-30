@@ -1,0 +1,36 @@
+{% macro plan_header(plan_date, recipe_name) -%}
+<div class="plan-header">
+    <div class="plan-header-content">
+        <div class="header-primer">
+            <div>PRODUCTION PLAN</div>
+            <div>|</div>
+            <div>DATE: {{ plan_date }}</div>
+            <div>|</div>
+        </div>
+        <div>{{ recipe_name }}</div>
+    </div>
+    <div style="overflow: clip">====================================================================================================================================================================</div>
+</div>
+{% endmacro %}
+
+{%  macro plan_notes(note_list) -%}
+<div class="plan-notes">
+    <div class="notes-header">**********************NOTES**********************</div>
+    <div class="notes-body">
+        {% for note in note_list %}
+            {%  if note[0] == 'kv' %}
+                <div>{{ note[1] }}</div>
+                <div>{{ note[2] }}</div>
+            {% elif note[0] == 'l' %}
+            <div>note[1]</div>
+            <div class="notes-list">
+                {%  for list_item in note[2] %}
+                    <div>{{ list_item[0] }}</div>
+                    <div>{{ list_item[1] }}</div>
+                {% endfor %}
+            </div>
+            {% endif %}
+        {% endfor %}
+    </div>
+</div>
+{% endmacro %}

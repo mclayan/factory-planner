@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "DTD/xhtml1-strict.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en">
+<head>
+    <meta http-equiv="Content-Type" content="text/html; charset=UTF-8"/>
+    <title>{{ title }}</title>
+    <link rel="stylesheet" href="data/templates/main.css"/>
+</head>
+<!-- Highlighting: "None" -->
+<body>
+{% import 'components.html.jinja2' as components %}
+
+{{ components.plan_header(plan.date, plan.recipe_name) }}
+{{ components.plan_notes(plan.notes) }}
+
+{% for recipe_data in recipes %}
+    {{ components.recipe_container(recipe_data) }}
+{% endfor %}
+</body>
+</html>
