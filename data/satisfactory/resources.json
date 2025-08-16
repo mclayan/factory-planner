@@ -2,8 +2,10 @@
   {
     "name": "Adaptive Control Unit",
     "id": "adaptive_control_unit",
-    "raw": false,
-    "tags": ["project_part"]
+    "tags": [
+      "project_part"
+    ],
+    "raw": false
   },
   {
     "name": "AI Limiter",
@@ -11,10 +13,30 @@
     "raw": false
   },
   {
+    "name": "Alumina Solution",
+    "id": "alumina_solution",
+    "raw": false
+  },
+  {
+    "name": "Assembly Director System",
+    "id": "assembly_director_system",
+    "tags": [
+      "project_part"
+    ],
+    "raw": false
+  },
+  {
     "name": "Automated Wiring",
     "id": "automated_wiring",
-    "raw": false,
-    "tags": ["project_part"]
+    "tags": [
+      "project_part"
+    ],
+    "raw": false
+  },
+  {
+    "name": "Bauxite",
+    "id": "bauxite",
+    "raw": true
   },
   {
     "name": "Black Powder",
@@ -124,6 +146,9 @@
   {
     "name": "Modular Engine",
     "id": "modular_engine",
+    "tags": [
+      "project_part"
+    ],
     "raw": false
   },
   {
@@ -227,9 +252,17 @@
     "raw": false
   },
   {
+    "name": "Supercomputer",
+    "id": "supercomputer",
+    "raw": false
+  },
+  {
     "name": "Versatile Framework",
     "id": "versatile_framework",
-    "raw": false
+    "raw": false,
+    "tags": [
+      "project_part"
+    ]
   },
   {
     "name": "Water",

@@ -11,10 +11,16 @@
 {% import 'components.html.jinja2' as components %}
 
 {{ components.plan_header(plan.date, plan.recipe_name) }}
-{{ components.plan_notes(plan.notes) }}
 
-{% for recipe_data in recipes %}
-    {{ components.recipe_container(recipe_data) }}
-{% endfor %}
+{{ components.plan_overview(plan, generator) }}
+
+{{ components.plan_notes(plan.notes, style_config.notes_indicator) }}
+<p></p>
+<div class="recipies">
+    <div class="recipe-container-header">***** STATION PLAN *****</div>
+    {% for recipe_data in recipes %}
+        {{ components.recipe_container(recipe_data) }}
+    {% endfor %}
+</div>
 </body>
 </html>

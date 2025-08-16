@@ -3,7 +3,9 @@
     "name": "Adaptive Control Unit",
     "id": "adaptive_control_unit",
     "cycle_secs": 60.0,
-    "tags": ["project_part"],
+    "tags": [
+      "project_part"
+    ],
     "products": [
       {
         "id": "adaptive_control_unit",
@@ -51,10 +53,36 @@
     ]
   },
   {
+    "name": "Assembly Director System",
+    "id": "assembly_director_system",
+    "cycle_secs": 80.0,
+    "tags": [
+      "project_part"
+    ],
+    "products": [
+      {
+        "id": "assembly_director_system",
+        "quantity": 1.0
+      }
+    ],
+    "resources": [
+      {
+        "id": "adaptive_control_unit",
+        "quantity": 2.0
+      },
+      {
+        "id": "supercomputer",
+        "quantity": 1.0
+      }
+    ]
+  },
+  {
     "name": "Automated Wiring",
     "id": "automated_wiring",
+    "tags": [
+      "project_part"
+    ],
     "cycle_secs": 24.0,
-    "tags": ["project_part"],
     "products": [
       {
         "id": "automated_wiring",
@@ -219,6 +247,19 @@
         "quantity": 1
       }
     ]
+  },
+  {
+    "name": "Copper Mining Mk.1",
+    "id": "copper_mining",
+    "cycle_secs": 60.0,
+    "products": [
+      {
+        "id": "copper_ore",
+        "quantity": 60.0
+      }
+    ],
+    "resources": [],
+    "source_name": "Copper Node (P)"
   },
   {
     "name": "Copper Sheet",
@@ -640,13 +681,13 @@
     "products": [
       {
         "id": "screw",
-        "quantity": 3
+        "quantity": 4.0
       }
     ],
     "resources": [
       {
         "id": "iron_rod",
-        "quantity": 1
+        "quantity": 1.0
       }
     ]
   },
@@ -786,9 +827,41 @@
     ]
   },
   {
+    "name": "Supercomputer",
+    "id": "supercomputer",
+    "cycle_secs": 32.0,
+    "products": [
+      {
+        "id": "supercomputer",
+        "quantity": 1.0
+      }
+    ],
+    "resources": [
+      {
+        "id": "computer",
+        "quantity": 4.0
+      },
+      {
+        "id": "ai_limiter",
+        "quantity": 2.0
+      },
+      {
+        "id": "highspeed_connector",
+        "quantity": 3.0
+      },
+      {
+        "id": "plastic",
+        "quantity": 28.0
+      }
+    ]
+  },
+  {
     "name": "Versatile Framework",
     "id": "versatile_framework",
     "cycle_secs": 24.0,
+    "tags": [
+      "project_part"
+    ],
     "products": [
       {
         "id": "versatile_framework",

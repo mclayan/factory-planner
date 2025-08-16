@@ -12,7 +12,17 @@
 
 body {
     font-family: "3270 Regular", monospace;
+}
 
+@media print {
+    #body {
+        max-width: 210mm;
+        padding: 10mm 20mm 25mm 10mm;
+    }
+
+    .recipe-container {
+        break-inside: avoid;
+    }
 }
 
 .plan-header {
@@ -33,6 +43,37 @@ body {
     padding-right: 1rem;
 }
 
+.text-ident {
+    display: inline;
+    text-decoration: underline;
+}
+
+/* ----------------- plan overview ------------------ */
+
+.plan-overview {
+    display: grid;
+    grid-template-columns: auto auto;
+}
+
+.plan-overview .recipe-summary {
+    width: max-content;
+    justify-self: right;
+    border-collapse: collapse;
+
+}
+
+.plan-overview .recipe-summary td {
+    border-bottom: 0.1rem hidden black;
+    padding-left: 0.3rem;
+}
+.plan-overview .recipe-summary td:first-child {
+    font-weight: bold;
+}
+
+.plan-overview .label-us {
+    text-decoration: underline;
+}
+
 /* ----------------- notes -------------------------- */
 .plan-notes {
 
@@ -44,16 +85,23 @@ body {
 
 .notes-body {
     display: grid;
-    grid-template-columns: max-content auto;
-    grid-column-gap: 1rem;
+    grid-template-columns: min-content 100%;
+    grid-column-gap: 0.5rem;
     padding-left: 1rem;
 }
 
-.notes-item {
+.notes-item-ind {
+    font-weight: bold;
+}
+.notes-item-pair {
     display: grid;
-
+    grid-template-columns: max-content auto;
+    grid-column-gap: 1rem;
 }
 
+.notes-item-single {
+
+}
 
 .notes-list {
     display: grid;
@@ -67,6 +115,15 @@ body {
 .recipe-container {
     display: grid;
     grid-column-gap: 0.5rem;
+}
+
+.recipe-container-header {
+    display: flex;
+    justify-content: center;
+    font-weight: bold;
+
+    margin-bottom: 1rem;
+    margin-top: 2rem;
 }
 
 .recipe-container div {
@@ -102,7 +159,7 @@ body {
     font-weight: normal;
     padding-left: 1rem;
     padding-bottom: 1rem;
-    grid-template-columns: max-content max-content max-content auto;
+    grid-template-columns: max-content max-content max-content max-content auto;
 }
 
 .recipe-body div {
@@ -119,7 +176,7 @@ body {
 }
 
 .recipe-body .sum-sep {
-    grid-column: 1 / 5;
+    grid-column: 1 / 6;
     width: 1px;
     text-wrap: nowrap;
 }

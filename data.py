@@ -36,6 +36,7 @@ class Resource(Entity):
             'name': self.name,
             'id': self.id,
             'raw': self.is_raw,
+            'tags': self.tags
         }
 
 

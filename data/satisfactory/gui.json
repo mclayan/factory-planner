@@ -4,5 +4,18 @@
     "display_name": "Project Parts",
     "bg": "LightGoldenrod3",
     "fg": null
-  }
+  },
+  "users": [
+    {
+      "name": "PIONEER, SAM",
+      "id": "FEPION013",
+      "department": "FACILITY ENGINEERING"
+    }
+  ],
+  "workstations": [
+    {
+      "hostname": "TERMFE042.FIXIT.ADA",
+      "location_code": "SECTOR=026,BUILDING=D12,FACILITY=IFEAP05"
+    }
+  ]
 }

@@ -1,5 +1,6 @@
 import datetime
 import io
+from typing import Optional
 
 import jinja2
 
@@ -8,12 +9,36 @@ from config import MainConfig
 
 __all__ = ['generate_html_report', 'generate_text_report']
 
+
+class TemplateConfig:
+
+    def __init__(self):
+        self.notes_indicator = '>>'
+
+
 class PlanInfo:
 
-    def __init__(self, recipe_name: str):
+    def __init__(self, recipe_name: str, recipe_scale: int):
         self.date = datetime.date.today().isoformat()
         self.notes = []
         self.recipe_name = recipe_name
+        self.recipe_scale = recipe_scale
+        self.count_recipes = 0
+        self.count_stations = 0
+
+        main_cfg = MainConfig()
+        self.operator_name = main_cfg.gui_config.current_user.name
+        self.operator_department = main_cfg.gui_config.current_user.department
+        self.operator_user = main_cfg.gui_config.current_user.user_id
+        self.operator_workstation = main_cfg.gui_config.current_workstation.hostname
+
+
+class GeneratorInfo:
+
+    def __init__(self):
+        main_cfg = MainConfig()
+        self.name = main_cfg.APP_NAME
+        self.version = main_cfg.APP_VERSION
 
 
 class RenderRecipe:
@@ -32,6 +57,13 @@ class RenderResource:
         self.name = name
         self.quantity = quantity
         self.is_excess = False
+        self.overflow = None
+
+
+def default_notes() -> list[tuple[str, str, Optional[str]]]:
+    return [
+        ('s', '**NO RESOURCE/PRODUCTION CIRCLE DETECTED**', None)
+    ]
 
 
 def generate_html_report(sink: io.TextIOBase, graph: util.ProductionGraphModel):
@@ -42,7 +74,8 @@ def generate_html_report(sink: io.TextIOBase, graph: util.ProductionGraphModel):
     template = env.get_template('production_plan.html.jinja2')
 
     recipe_list = []
-    plan = PlanInfo(graph.graph.root_product.name)
+    plan = PlanInfo(graph.graph.root_product.name, int(graph.graph.root.recipe.scale))
+    plan.notes.extend(default_notes())
 
     sp_tag_val = MainConfig().gui_config.special_resource_tag.tag_val
     sp_tag_desc = (MainConfig().gui_config.special_resource_tag.display_name or 'special product').upper()
@@ -61,6 +94,16 @@ def generate_html_report(sink: io.TextIOBase, graph: util.ProductionGraphModel):
         note_raw_res = ('l', 'TOTAL RAW RESOURCES:', raw_res_note_list)
         plan.notes.append(note_raw_res)
 
+    notes_overflow = []
+    for resource in graph.product_overflow:
+        res_name = resource.resource.name.upper()
+        res_qt = f'{int(resource.quantity):05} x'
+        notes_overflow.append((res_qt, res_name))
+    if len(notes_overflow) > 0:
+        note_overflow = ('l', 'OVERFLOW OF PRODUCTS:', notes_overflow)
+        plan.notes.append(note_overflow)
+    else:
+        plan.notes.append(('s', '**NO PRODUCT OVERFLOW**'))
 
     for node in graph.nodes:
         recipe_components = node.recipe.scaled_components()
@@ -82,10 +125,16 @@ def generate_html_report(sink: io.TextIOBase, graph: util.ProductionGraphModel):
                 res.is_excess = False
             else:
                 res.is_excess = True
+            if resource_id in graph.product_overflow:
+                res.overflow = graph.product_overflow[resource_id].quantity
             recipe.products.append(res)
         recipe_list.append(recipe)
+        plan.count_recipes += 1
+        plan.count_stations += int(node.recipe.scale)
 
-    sink.write(template.render(plan=plan, recipes=recipe_list))
+    sink.write(
+        template.render(plan=plan, recipes=recipe_list, style_config=TemplateConfig(), generator=GeneratorInfo()))
+
 
 def generate_text_report(sink: io.TextIOBase, graph: util.ProductionGraphModel):
     ilevel = 0
@@ -136,6 +185,7 @@ def generate_text_report(sink: io.TextIOBase, graph: util.ProductionGraphModel):
             if resource_id in graph.total_resources or resource_id == graph.graph.root_product.id:
                 sink.write(f'{" " * ilevel * 6} OUT: {int(resource_qt): 4} x {product.resource.name}\n')
             else:
-                sink.write(f'{" " * ilevel * 6} OUT: {int(resource_qt): 4} x {product.resource.name} **SIDE PRODUCT**\n')
+                sink.write(
+                    f'{" " * ilevel * 6} OUT: {int(resource_qt): 4} x {product.resource.name} **SIDE PRODUCT**\n')
         sink.write('\n')
         ilevel -= 1
