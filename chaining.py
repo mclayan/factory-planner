@@ -48,7 +48,6 @@ class ResourceAggregate:
         return results
 
 
-
 class BaseNode(ABC):
     __slots__ = ('parent', 'children', 'tree')
 
@@ -72,7 +71,8 @@ class BaseNode(ABC):
 
 class EndNode(BaseNode):
 
-    def __init__(self, resource: ResourceQuantity, parent: typing.Optional[BaseNode], tree: 'ProductionTree', end_type: str = 'unknown'):
+    def __init__(self, resource: ResourceQuantity, parent: typing.Optional[BaseNode], tree: 'ProductionTree',
+                 end_type: str = 'unknown'):
         super().__init__(parent, tree)
         self.resource = resource
         if end_type.lower() == 'source':
@@ -152,14 +152,16 @@ class AltNode(BaseNode):
 
 class ProdNode(BaseNode):
 
-    def __init__(self, recipe: Recipe, production: TargetedProduction, rpm: float, parent: typing.Optional['ProdNode'], tree: 'ProductionTree'):
+    def __init__(self, recipe: Recipe, production: TargetedProduction, rpm: float, parent: typing.Optional['ProdNode'],
+                 tree: 'ProductionTree'):
         super().__init__(parent, tree)
         self.production = production
         self.recipe = recipe
         self.rpm = rpm
         self.children = []
 
-    def resolve_children(self, repository: RecipeRepository, level: int, max_level: int, parent_recipes: set[str], excluded_recipes: set[str]):
+    def resolve_children(self, repository: RecipeRepository, level: int, max_level: int, parent_recipes: set[str],
+                         excluded_recipes: set[str]):
         for dependency in self.production.for_rpm(self.rpm).resources:
             alternatives = AltNode(dependency.resource, self, self.tree)
             recipes_unfiltered = repository.find_recipes_by_product(dependency.resource)
@@ -202,7 +204,7 @@ class ProdNode(BaseNode):
         for child_node in self.children:
             last_child = i < len(self.children)
             w_str = '{}── '.format('├' if last_child else '└',
-                                             width=level * 2)
+                                   width=level * 2)
             c_pfx = '{pfx}{}   '.format(
                 '│' if last_child else ' ',
                 pfx=pfx
@@ -241,9 +243,9 @@ class ProductionTree:
         return aggregate
 
 
-#----------------------------------------------------------------------------------------------------------------------#
+# ----------------------------------------------------------------------------------------------------------------------#
 #   Graph                                                                                                              #
-#----------------------------------------------------------------------------------------------------------------------#
+# ----------------------------------------------------------------------------------------------------------------------#
 
 class GraphNode:
     __slots__ = ('consumers', 'producers', 'recipe', 'is_root', 'level')
@@ -253,7 +255,6 @@ class GraphNode:
         self.producers: dict[str, 'GraphNode'] = dict()
         self.recipe = recipe
         self.level = dependency_level
-
 
     def register_consumer(self, consumer: 'GraphNode'):
         recipe_id = consumer.recipe.recipe_id()
@@ -284,7 +285,7 @@ class GraphNode:
             if int_scale:
                 self.recipe.ceil_scale()
 
-    def update_scale_rec(self, level: int, max_level: int=20, int_scale=False):
+    def update_scale_rec(self, level: int, max_level: int = 20, int_scale=False):
         self.update_scale(int_scale)
         if level < max_level:
             for producer in self.producers.values():
@@ -352,8 +353,7 @@ class ProductionGraph:
         return totals
 
 
-
-def _add_tree_node(graph: ProductionGraph, tree_node: BaseNode,  consumer_node: GraphNode, level: int):
+def _add_tree_node(graph: ProductionGraph, tree_node: BaseNode, consumer_node: GraphNode, level: int):
     if isinstance(tree_node, ProdNode):
         current_node = graph.add_recipe(tree_node.recipe, consumer_node, level)
         for child_tree_node in tree_node:
