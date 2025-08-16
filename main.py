@@ -81,7 +81,7 @@ def _main():
             _cli(config)
         elif op_mode == 'gui':
             if args.productivity_look:
-                config.productivity_look = True
+                config.gui_config.enable_productivity_look = True
             planner_ui.application.main(config)
     except Exception as e:
         print(f'Fatal error: {e}. Dumping repository.')

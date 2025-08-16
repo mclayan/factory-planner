@@ -1,4 +1,6 @@
 {
+  "enable_login": true,
+  "enable_productivity_look": false,
   "resource_tag_special": {
     "tag": "project_part",
     "display_name": "Project Parts",

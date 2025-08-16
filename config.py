@@ -34,9 +34,11 @@ class GuiUserInfo:
 
 
 class GuiConfig:
-    __slots__ = ('special_resource_tag', 'current_user', 'current_workstation', 'user_list', 'workstation_list')
+    __slots__ = ('enable_login', 'enable_productivity_look', 'special_resource_tag', 'current_user', 'current_workstation', 'user_list', 'workstation_list')
 
     def __init__(self):
+        self.enable_login = False
+        self.enable_productivity_look = False
         self.special_resource_tag = GuiSpecialResourceTag()
         self.current_user = None
         self.current_workstation = None
@@ -49,6 +51,11 @@ class GuiConfig:
         with open(config_path, 'r') as config_file:
             cfg_dict: dict = json.load(config_file)
             res_tag_special = cfg_dict.get('resource_tag_special', dict())
+
+            if 'enable_login' in cfg_dict:
+                instance.enable_login = cfg_dict.get('enable_login')
+            instance.enable_productivity_look = cfg_dict.get('enable_productivity_look', False)
+
             instance.special_resource_tag.tag_val = res_tag_special.get('tag', None)
             instance.special_resource_tag.display_name = res_tag_special.get('display_name', 'Special Resources')
             instance.special_resource_tag.col_bg = res_tag_special.get('bg', None)
@@ -80,7 +87,6 @@ class MainConfig(metaclass=Singleton):
         self.recipes_file = recipes_file
         self.repository = repo
         self.theme = theme
-        self.productivity_look = False
         self.debug = False
         if gui_config_file is not None:
             self.gui_config = GuiConfig.load_file(gui_config_file)

@@ -34,9 +34,9 @@ class RootFrame(tk.Frame):
         self.controller.notify_button_pressed = self.cb_login_pressed
 
 
-    def init_main_app(self, repo: RecipeRepository, master=None):
+    def init_main_app(self):
         self.controller = None
-        self.view = Application(repo, master=master)
+        self.view = Application(self.repository, master=self)
         self.view.grid(row=0, column=0, sticky=tk.NSEW)
 
     def cb_login_pressed(self):
@@ -53,7 +53,7 @@ class RootFrame(tk.Frame):
                     cfg.current_workstation = known_ws
                     break
 
-            self.init_main_app(self.repository, self)
+            self.init_main_app()
 
 
 class MainButtons(tk.Frame):
@@ -110,13 +110,16 @@ def main(config: MainConfig):
     if config.theme in style.theme_names():
         style.theme_use(config.theme)
 
-    if config.productivity_look:
+    if config.gui_config.enable_productivity_look:
         set_productivity_look(style)
 
     root.columnconfigure(0, weight=1)
     root.rowconfigure(0, weight=1)
 
     root_frame = RootFrame(style.master, config.repository)
-    root_frame.init_login(config.gui_config)
+    if config.gui_config.enable_login:
+        root_frame.init_login(config.gui_config)
+    else:
+        root_frame.init_main_app()
 
     root.mainloop()
