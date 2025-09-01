@@ -4,7 +4,7 @@ from copy import copy
 from data import Resource
 from planner_ui import RootController, View, T
 from planner_ui.entity_select import EntitySelect, EntitySelectController, ResourceAttrController, ResourceAttrView
-from repository import RecipeRepository, InvalidDataError, DuplicateKeyError
+from persistence import RecipeRepository, InvalidDataError, DuplicateKeyError
 import tkinter as tk
 import tkinter.ttk
 

@@ -1,3 +1,4 @@
+import logging
 import sys
 import tkinter as tk
 import tkinter.ttk as ttk
@@ -7,14 +8,14 @@ from typing import Optional
 from tkinter.font import Font
 
 import chaining
-import config
-import util
+import configuration
+import data
 from chaining import ProductionGraph, ProductionTree
 from data import Recipe, Resource
-from util import ProductionGraphModel
 from . import Controller, RootController, T, View
 import print
-from repository import RecipeRepository
+from persistence import RecipeRepository
+from .alt_select import AltSelectionPopup, ProducerSelectController, ProducerSelectView
 from .entity_select import EntitySelectController, EntitySelect, EntityMultiSelectController
 
 
@@ -22,7 +23,7 @@ class PlannerController(RootController):
 
     def __init__(self, master, v_id: str, parent: typing.Optional[typing.Self], repository: RecipeRepository):
         super().__init__(v_id, parent, repository)
-        self.current_graph: Optional[ProductionGraphModel] = None
+        self.current_graph: Optional[print.ProductionGraphModel] = None
         self.var_target_rpm = tk.DoubleVar()
         self.var_filter_raw_recipes = tk.BooleanVar()
 
@@ -32,16 +33,22 @@ class PlannerController(RootController):
 
         self.ctl_product_select = EntitySelectController(self.view, 'product_sel', self, repository, Resource,
                                                          'Product', False, True, id_filter=[])
-        self.ctl_recipe_blacklist = EntityMultiSelectController(self.view, 'recipe_blacklist', self, repository, Recipe, 'Excluded Recipes', True, id_filter=None)
+        self.ctl_recipe_blacklist = EntityMultiSelectController(self.view, 'recipe_blacklist', self, repository, Recipe,
+                                                                'Excluded Recipes', True, id_filter=None)
+        self.ctl_alt_select = ProducerSelectController(self.view.frame_producer_select, 'producer_selection', self,
+                                                       repository)
         self.ctl_station_plan = StationPlanViewController(self.view, 'stations', self)
         self.ctl_plan_summary = PlanSummaryController(self.view, 'plan_summary', self, repository=repository)
+
         self.view.init_components(self.ctl_recipe_select.widget(),
                                   self.ctl_product_select.widget(),
                                   self.ctl_recipe_blacklist.widget(),
+                                  self.ctl_alt_select.widget(),
                                   self.ctl_station_plan.widget(),
                                   self.ctl_plan_summary.widget())
         self.ctl_recipe_select.register_cb_sel_change(self.cb_recipe_sel_changed)
         self.ctl_product_select.register_cb_sel_change(self.cb_product_sel_changed)
+        self.ctl_alt_select.listeners.append(self.cb_alt_sel_changes)
 
     def generate_chain(self, recipe: Recipe, product: Resource, rpm: float):
         excluded_recipes = set(r.id for r in self.ctl_recipe_blacklist.value())
@@ -50,12 +57,20 @@ class PlannerController(RootController):
                 if len(rec.resources) == 0:
                     excluded_recipes.add(r_id)
 
+        alternatives = self.ctl_alt_select.value()[1]
+
         tree = ProductionTree(recipe, product, rpm)
-        tree.build(self.repository, excluded_recipes=excluded_recipes)
+        tree.config.blacklist = excluded_recipes
+        for alt in alternatives:
+            tree.config.recipe_preferences.add_preference(alt.product, alt.recipe)
+        logging.debug(
+            f'generating tree: \n  recipe: {tree.root.recipe.get_name()}\n  blacklist: {list(tree.config.blacklist)}\n  preferences: {tree.config.recipe_preferences}')
+        tree.build(self.repository)
+
         graph = chaining.convert_to_graph(tree, product)
         graph.integer_scales = True
         graph.update_scales()
-        graph_model = ProductionGraphModel(graph)
+        graph_model = print.ProductionGraphModel(graph)
         self.current_graph = graph_model
         self.ctl_station_plan.set_value(graph_model)
         self.ctl_plan_summary.set_value(graph_model)
@@ -82,16 +97,30 @@ class PlannerController(RootController):
             self.ctl_product_select.clear_display()
             self.ctl_product_select.id_filter = [p_id for p_id in recipe.products.keys()]
             self.ctl_product_select.update_entities()
+            self.ctl_alt_select.load_associations(recipe)
             if len(recipe.products) == 1:
                 self.ctl_product_select.set_value(recipe.nth_product(0))
             else:
                 self.var_target_rpm.set(1.0)
 
+    def validate_params(self):
+        alts_valid = self.ctl_alt_select.is_valid
+        recipe_valid = isinstance(self.ctl_recipe_select.value(), data.Recipe)
+        product_valid = isinstance(self.ctl_product_select.value(), data.Resource)
+        rpm_valid = self.var_target_rpm.get() >= 0.01
+        if alts_valid and recipe_valid and product_valid and rpm_valid:
+            self.view.btn_generate.configure(state='normal')
+        else:
+            self.view.btn_generate.configure(state='disabled')
+
     def cb_product_sel_changed(self, product):
         recipe = self.ctl_recipe_select.value()
         if isinstance(product, Resource) and isinstance(recipe, Recipe):
             self.var_target_rpm.set(recipe.scaled(1).products[product.id].quantity)
-            self.view.btn_generate.configure(state='normal')
+            self.validate_params()
+
+    def cb_alt_sel_changes(self):
+        self.validate_params()
 
     def widget(self) -> tk.Widget:
         return self.view
@@ -107,7 +136,8 @@ class PlannerView(ttk.Frame, View):
     _HELP_TEXTS = {
         'recipe_select': 'Use this recipe as the root from which to build the production plan:',
         'product_select': 'Root output product of the recipe:',
-        'recipe_blacklist': 'Exclude the following recipes from the calculation:'
+        'recipe_blacklist': 'Exclude the following recipes from the calculation:',
+        'producer_select': 'Use the following intermediate recipes if more than one recipe may be used:'
     }
 
     def __init__(self, master, controller: PlannerController):
@@ -118,16 +148,20 @@ class PlannerView(ttk.Frame, View):
         self.frame_config = tk.LabelFrame(self, text='Recipe Configuration')
         self.lbl_target_rpm = tk.Label(self.frame_config, text='Target RPM')
         self.lbl_target_rpm.grid(row=0, column=0, sticky=tk.W, padx=10, pady=10)
-        self.sb_target_rpm = ttk.Spinbox(self.frame_config, textvariable=controller.var_target_rpm, from_=0, increment=0.1)
+        self.sb_target_rpm = ttk.Spinbox(self.frame_config, textvariable=controller.var_target_rpm, from_=0,
+                                         increment=0.1)
         self.sb_target_rpm.grid(row=0, column=1, sticky=tk.W)
 
-        self.ckb_exclude_raw = tk.Checkbutton(self.frame_config, variable=controller.var_filter_raw_recipes, text='Exclude Raw Resource Recipes')
+        self.ckb_exclude_raw = tk.Checkbutton(self.frame_config, variable=controller.var_filter_raw_recipes,
+                                              text='Exclude Raw Resource Recipes')
         self.ckb_exclude_raw.grid(row=0, column=2, sticky=tk.NW)
 
         self.frame_buttons = tk.Frame(self)
-        self.btn_generate = tk.Button(self.frame_buttons, text='Generate', command=controller.cb_btn_generate, state='disabled')
+        self.btn_generate = tk.Button(self.frame_buttons, text='Generate', command=controller.cb_btn_generate,
+                                      state='disabled')
         self.btn_generate.grid(row=0, sticky=tk.NSEW)
-        self.btn_print = tk.Button(self.frame_buttons, text='Print Plan', command=controller.cb_btn_print, state='disabled')
+        self.btn_print = tk.Button(self.frame_buttons, text='Print Plan', command=controller.cb_btn_print,
+                                   state='disabled')
         self.btn_print.grid(row=1, sticky=tk.NSEW)
 
         self.row_components = row
@@ -138,12 +172,22 @@ class PlannerView(ttk.Frame, View):
 
         self.vw_product_select: Optional[EntitySelect] = None
         self.vw_blacklist_select: Optional[EntitySelect] = None
+
+        self.frame_producer_select = ttk.LabelFrame(self, text=self._HELP_TEXTS['producer_select'])
+        self.vw_producer_select: Optional[ProducerSelectView] = None
+
         self.vw_station_plan: Optional[StationPlanView] = None
         self.vw_summary: Optional[PlanSummaryView] = None
         self.columnconfigure(index=0, weight=1)
         self.columnconfigure(index=1, weight=1)
 
-    def init_components(self, recipe_sel: EntitySelect, product_select: EntitySelect, blacklist_select: EntitySelect, station_plan: 'StationPlanView', plan_summary: 'PlanSummaryView'):
+    def init_components(self,
+                        recipe_sel: EntitySelect,
+                        product_select: EntitySelect,
+                        blacklist_select: EntitySelect,
+                        producer_select: ProducerSelectView,
+                        station_plan: 'StationPlanView',
+                        plan_summary: 'PlanSummaryView'):
         row = self.row_components
         self.vw_recipe_select = recipe_sel
         # hacky but avoids extending EntitySelect
@@ -157,7 +201,7 @@ class PlannerView(ttk.Frame, View):
         self.lbl_product_select.grid(row=0)
 
         self.vw_blacklist_select = blacklist_select
-        special_tag_cfg = config.MainConfig().gui_config.special_resource_tag
+        special_tag_cfg = configuration.MainConfig().gui_config.special_resource_tag
         if special_tag_cfg is not None and special_tag_cfg.tag_val is not None:
             special_tag_val = special_tag_cfg.tag_val
             tag_args = dict()
@@ -175,8 +219,13 @@ class PlannerView(ttk.Frame, View):
         self.vw_blacklist_select.grid(row=row, column=2, sticky=tk.NSEW, padx=10)
         row += 1
 
-        self.frame_config.grid(row=row, column=0, sticky=tk.EW, pady=10)
-        self.frame_buttons.grid(row=row, column=1,  padx=10)
+        self.vw_producer_select = producer_select
+        self.vw_producer_select.grid(row=0, column=0, sticky=tk.NSEW)
+        self.frame_producer_select.grid(row=row, column=0, sticky=tk.NSEW)
+        # row += 1
+
+        self.frame_config.grid(row=row, column=1, sticky=tk.EW, pady=10)
+        self.frame_buttons.grid(row=row, column=2, padx=10)
         row += 1
         separator = ttk.Separator(self, orient="horizontal")
         separator.grid(row=row, column=0, columnspan=3, sticky=tk.NSEW, pady=15)
@@ -194,7 +243,7 @@ class StationPlanViewController(Controller):
     def __init__(self, master, v_id: str, parent: typing.Optional[Controller[T]]):
         super().__init__(v_id, parent)
         self.view = StationPlanView(master, self)
-        self.graph: typing.Optional[ProductionGraphModel] = None
+        self.graph: typing.Optional[print.ProductionGraphModel] = None
 
     def update_tree(self):
         tv = self.view.tv_recipe_stages
@@ -205,12 +254,13 @@ class StationPlanViewController(Controller):
             id_out = f'{recipe_id}_out'
             recipe_consumer_count = len(stage_node.consumers.values())
             tv.insert('', 'end', iid=stage_node.recipe.recipe_id(), values=(
-                f'{int(stage_node.recipe.scale)}', '', stage_node.recipe.recipe.name, '', '', '', '', recipe_consumer_count
+                f'{int(stage_node.recipe.scale)}', '', stage_node.recipe.recipe.name, '', '', '', '',
+                recipe_consumer_count
             ), tags=('row_recipe',))
             tv.insert(recipe_id, 'end', iid=id_in, values=('', 'IN'), open=True, tags=('row_io',))
             tv.insert(recipe_id, 'end', iid=id_out, values=('', 'OUT'), open=True, tags=('row_io',))
             recipe_components = stage_node.recipe.scaled_components()
-            #recipe_demands = stage_node.resource_demand()
+            # recipe_demands = stage_node.resource_demand()
 
             if len(recipe.resources) == 0:
                 tv.insert(id_in, 'end', iid=f'{recipe_id}_raw', values=('', '', '', '', recipe.source_name))
@@ -220,7 +270,8 @@ class StationPlanViewController(Controller):
                     res_id = resource.resource.id
                     base_qt = int(stage_node.recipe.recipe.resources[res_id].quantity)
                     rpm = resource.quantity
-                    tv.insert(id_in, 'end', iid=in_res_id, values=('', '', '', base_qt, resource.resource.name, f'{rpm:.1f}'),
+                    tv.insert(id_in, 'end', iid=in_res_id,
+                              values=('', '', '', base_qt, resource.resource.name, f'{rpm:.1f}'),
                               tags=('row_resource',))
             for resource in recipe_components.products:
                 out_res_id = f'{recipe_id}_{resource.resource.id}_out'
@@ -247,10 +298,10 @@ class StationPlanViewController(Controller):
     def widget(self) -> 'StationPlanView':
         return self.view
 
-    def value(self) -> typing.Optional[ProductionGraphModel]:
+    def value(self) -> typing.Optional[print.ProductionGraphModel]:
         return self.graph
 
-    def set_value(self, val: ProductionGraphModel):
+    def set_value(self, val: print.ProductionGraphModel):
         self.graph = val
         self.update_tree()
 
@@ -277,7 +328,7 @@ class StationPlanView(ttk.Frame, View):
         self.var_heading_help = StringVar()
 
         self.tv_recipe_stages = ttk.Treeview(self, columns=(
-        'scale', 'io', 'recipe', 'res_qt', 'res_name', 'rpm', 'overflow', 'c_count'))
+            'scale', 'io', 'recipe', 'res_qt', 'res_name', 'rpm', 'overflow', 'c_count'))
         self.tv_recipe_stages.grid(row=0, column=0, sticky=tk.NSEW)
         self.rowconfigure(0, weight=1)
         self.columnconfigure(0, weight=1)
@@ -307,10 +358,9 @@ class StationPlanView(ttk.Frame, View):
         self.tv_recipe_stages.tag_configure('row_product_excess', background='#ff6b6b')
 
         style = ttk.Style()
-        row_font = Font(font=tk.font.nametofont(style.configure('.','font')))
+        row_font = Font(font=tk.font.nametofont(style.configure('.', 'font')))
         row_font['weight'] = 'bold'
         self.tv_recipe_stages.tag_configure('row_recipe', font=row_font)
-
 
         self.frame_help = ttk.LabelFrame(self, text='Help')
         self.frame_help.grid(row=1, column=0, sticky=tk.NSEW)
@@ -337,7 +387,7 @@ class PlanSummaryController(RootController):
 
     def __init__(self, master, v_id: str, parent: typing.Optional[Controller[T]], repository: RecipeRepository):
         super().__init__(v_id, parent, repository)
-        self.current_graph: typing.Optional[ProductionGraphModel] = None
+        self.current_graph: typing.Optional[print.ProductionGraphModel] = None
         self.categories = dict()
 
         self.view = PlanSummaryView(master, self)
@@ -348,7 +398,7 @@ class PlanSummaryController(RootController):
     def value(self) -> typing.Optional[ProductionGraph]:
         return self.current_graph
 
-    def set_value(self, val: ProductionGraphModel):
+    def set_value(self, val: print.ProductionGraphModel):
         self.current_graph = val
         self.update_entries()
 
@@ -384,7 +434,7 @@ class PlanSummaryController(RootController):
             self.add_entry(self.CATEGORY_TOTAL_RAW, item_id, res_name, qt)
 
     def add_summary_special_resources(self):
-        special_tag_cfg = config.MainConfig().gui_config.special_resource_tag
+        special_tag_cfg = configuration.MainConfig().gui_config.special_resource_tag
         if special_tag_cfg is not None:
             category = special_tag_cfg.display_name
             for node in self.current_graph.nodes:

@@ -4,11 +4,42 @@ from typing import Optional
 
 import jinja2
 
-import util
-from config import MainConfig
+import configuration
+import chaining
+import data
 
-__all__ = ['generate_html_report', 'generate_text_report']
+__all__ = ['generate_html_report', 'generate_text_report', 'ProductionGraphModel']
 
+class ProductionGraphModel:
+
+    def __init__(self, graph: chaining.ProductionGraph):
+        self.nodes = graph.as_list()
+        self.graph = graph
+        self.total_resources = data.ResourceQuantities([])
+        self.total_products = data.ResourceQuantities([])
+        self.product_overflow = data.ResourceQuantities([])
+        self.excess_products = data.ResourceQuantities([])
+        self._update_totals()
+
+    def _update_totals(self):
+        self.total_resources = self.graph.get_total_resources()
+        self.total_products = self.graph.get_total_products()
+
+        for product in self.total_products:
+            if not product.resource is self.graph.root_product:
+                production = product.quantity
+                demand = self.total_resources.get_quantity(product.resource, 0)
+                if demand == 0:
+                    self.excess_products.add(product)
+                elif demand < production:
+                    self.product_overflow.add(data.ResourceQuantity(product.resource, production - demand))
+
+    def get_raw_totals(self) -> data.ResourceQuantities:
+        result = data.ResourceQuantities([])
+        for t in self.total_resources:
+            if t.resource.is_raw:
+                result.add(t)
+        return result
 
 class TemplateConfig:
 
@@ -26,7 +57,7 @@ class PlanInfo:
         self.count_recipes = 0
         self.count_stations = 0
 
-        main_cfg = MainConfig()
+        main_cfg = configuration.MainConfig()
         self.operator_name = main_cfg.gui_config.current_user.name
         self.operator_department = main_cfg.gui_config.current_user.department
         self.operator_user = main_cfg.gui_config.current_user.user_id
@@ -36,7 +67,7 @@ class PlanInfo:
 class GeneratorInfo:
 
     def __init__(self):
-        main_cfg = MainConfig()
+        main_cfg = configuration.MainConfig()
         self.name = main_cfg.APP_NAME
         self.version = main_cfg.APP_VERSION
 
@@ -66,7 +97,7 @@ def default_notes() -> list[tuple[str, str, Optional[str]]]:
     ]
 
 
-def generate_html_report(sink: io.TextIOBase, graph: util.ProductionGraphModel):
+def generate_html_report(sink: io.TextIOBase, graph: ProductionGraphModel):
     env = jinja2.Environment(
         loader=jinja2.FileSystemLoader("data/templates"),
         autoescape=jinja2.select_autoescape()
@@ -77,8 +108,8 @@ def generate_html_report(sink: io.TextIOBase, graph: util.ProductionGraphModel):
     plan = PlanInfo(graph.graph.root_product.name, int(graph.graph.root.recipe.scale))
     plan.notes.extend(default_notes())
 
-    sp_tag_val = MainConfig().gui_config.special_resource_tag.tag_val
-    sp_tag_desc = (MainConfig().gui_config.special_resource_tag.display_name or 'special product').upper()
+    sp_tag_val = configuration.MainConfig().gui_config.special_resource_tag.tag_val
+    sp_tag_desc = (configuration.MainConfig().gui_config.special_resource_tag.display_name or 'special product').upper()
     for node in graph.nodes:
         recipe = node.recipe.recipe
         if sp_tag_val in recipe.tags and recipe.id != graph.graph.root.recipe_id():
@@ -136,7 +167,7 @@ def generate_html_report(sink: io.TextIOBase, graph: util.ProductionGraphModel):
         template.render(plan=plan, recipes=recipe_list, style_config=TemplateConfig(), generator=GeneratorInfo()))
 
 
-def generate_text_report(sink: io.TextIOBase, graph: util.ProductionGraphModel):
+def generate_text_report(sink: io.TextIOBase, graph: ProductionGraphModel):
     ilevel = 0
     date = datetime.date.today()
     plan_name = graph.graph.root.recipe.recipe.name
@@ -148,8 +179,8 @@ def generate_text_report(sink: io.TextIOBase, graph: util.ProductionGraphModel):
     sink.write(f'**********************NOTES**********************\n')
     ilevel += 1
 
-    sp_tag_val = MainConfig().gui_config.special_resource_tag.tag_val
-    sp_tag_desc = (MainConfig().gui_config.special_resource_tag.display_name or 'special product').upper()
+    sp_tag_val = configuration.MainConfig().gui_config.special_resource_tag.tag_val
+    sp_tag_desc = (configuration.MainConfig().gui_config.special_resource_tag.display_name or 'special product').upper()
     for node in graph.nodes:
         recipe = node.recipe.recipe
         if sp_tag_val in recipe.tags:

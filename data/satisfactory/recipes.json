@@ -3,9 +3,6 @@
     "name": "Adaptive Control Unit",
     "id": "adaptive_control_unit",
     "cycle_secs": 60.0,
-    "tags": [
-      "project_part"
-    ],
     "products": [
       {
         "id": "adaptive_control_unit",
@@ -53,12 +50,118 @@
     ]
   },
   {
+    "name": "Alumina Solution",
+    "id": "alumina_solution",
+    "cycle_secs": 6.0,
+    "products": [
+      {
+        "id": "alumina_solution",
+        "quantity": 12.0
+      },
+      {
+        "id": "silica",
+        "quantity": 5.0
+      }
+    ],
+    "resources": [
+      {
+        "id": "bauxite",
+        "quantity": 12.0
+      },
+      {
+        "id": "water",
+        "quantity": 18.0
+      }
+    ]
+  },
+  {
+    "name": "Aluminum Casing",
+    "id": "aluminium_casing",
+    "cycle_secs": 2.0,
+    "products": [
+      {
+        "id": "aluminium_casing",
+        "quantity": 2.0
+      }
+    ],
+    "resources": [
+      {
+        "id": "aluminium_ingot",
+        "quantity": 3.0
+      }
+    ]
+  },
+  {
+    "name": "Aluminum Ingot",
+    "id": "aluminium_ingot",
+    "cycle_secs": 4.0,
+    "products": [
+      {
+        "id": "aluminium_ingot",
+        "quantity": 4.0
+      }
+    ],
+    "resources": [
+      {
+        "id": "aluminium_scrap",
+        "quantity": 6.0
+      },
+      {
+        "id": "silica",
+        "quantity": 5.0
+      }
+    ]
+  },
+  {
+    "name": "Aluminum Scrap",
+    "id": "aluminium_scrap",
+    "cycle_secs": 1.0,
+    "products": [
+      {
+        "id": "aluminium_scrap",
+        "quantity": 6.0
+      },
+      {
+        "id": "water",
+        "quantity": 2.0
+      }
+    ],
+    "resources": [
+      {
+        "id": "alumina_solution",
+        "quantity": 4.0
+      },
+      {
+        "id": "coal",
+        "quantity": 2.0
+      }
+    ]
+  },
+  {
+    "name": "Alclad Aluminum Sheet",
+    "id": "aluminium_sheet",
+    "cycle_secs": 6.0,
+    "products": [
+      {
+        "id": "aluminium_sheet",
+        "quantity": 3.0
+      }
+    ],
+    "resources": [
+      {
+        "id": "aluminium_ingot",
+        "quantity": 3.0
+      },
+      {
+        "id": "copper_ingot",
+        "quantity": 1.0
+      }
+    ]
+  },
+  {
     "name": "Assembly Director System",
     "id": "assembly_director_system",
     "cycle_secs": 80.0,
-    "tags": [
-      "project_part"
-    ],
     "products": [
       {
         "id": "assembly_director_system",
@@ -79,9 +182,6 @@
   {
     "name": "Automated Wiring",
     "id": "automated_wiring",
-    "tags": [
-      "project_part"
-    ],
     "cycle_secs": 24.0,
     "products": [
       {
@@ -859,9 +959,6 @@
     "name": "Versatile Framework",
     "id": "versatile_framework",
     "cycle_secs": 24.0,
-    "tags": [
-      "project_part"
-    ],
     "products": [
       {
         "id": "versatile_framework",

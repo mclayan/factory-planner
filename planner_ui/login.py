@@ -2,7 +2,7 @@ import tkinter as tk
 import tkinter.ttk as ttk
 import typing
 
-from config import GuiConfig
+from configuration import GuiConfig
 from planner_ui import Controller, View
 
 

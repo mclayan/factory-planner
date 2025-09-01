@@ -5,14 +5,14 @@ import sys
 
 import planner_ui
 import planner_ui.application
-import repository
-from cli import Cli
-from config import MainConfig
+import persistence
+import cli
+import configuration
 
 
-def _cli(config: MainConfig):
-    cli = Cli(config)
-    while cli.loop(): pass
+def _cli(config: configuration.MainConfig):
+    cli_impl = cli.Cli(config)
+    while cli_impl.loop(): pass
 
 def _check_files(resources_file: str, recipes_file: str) -> tuple[bool, bool]:
     resources_exist = os.path.isfile(resources_file)
@@ -60,7 +60,7 @@ def _main():
             print(f'Error: cannot init new repository because files already exist')
             return
         print('initializing new repository')
-        repo = repository.RecipeRepository()
+        repo = persistence.RecipeRepository()
     else:
         res_exists, rec_exists = _check_files(resources_file, recipes_file)
         if not res_exists:
@@ -69,9 +69,9 @@ def _main():
         if not rec_exists:
             print(f'Error: failed to read recipes file {recipes_file}')
             return
-        repo = repository.load_repository(resources_file, recipes_file)
+        repo = persistence.load_repository(resources_file, recipes_file)
 
-    config = MainConfig(resources_file, recipes_file, repo, args.gui_theme, gui_config_file)
+    config = configuration.MainConfig(resources_file, recipes_file, repo, args.gui_theme, gui_config_file)
     if args.is_debug:
         config.debug = True
 
@@ -88,7 +88,7 @@ def _main():
         raise e
     finally:
         if not args.is_readonly:
-            repository.save_repository(repo, config.resources_file, config.recipes_file)
+            persistence.save_repository(repo, config.resources_file, config.recipes_file)
 
 
 if __name__ == '__main__':

@@ -1,17 +1,8 @@
 import json
 import logging
 
-from repository import RecipeRepository
-
-
-# thank you, $so/q/6760685 !
-class Singleton(type):
-    _instances = {}
-
-    def __call__(cls, *args, **kwargs):
-        if cls not in cls._instances:
-            cls._instances[cls] = super(Singleton, cls).__call__(*args, **kwargs)
-        return cls._instances[cls]
+import persistence
+import util
 
 
 class GuiSpecialResourceTag:
@@ -34,7 +25,8 @@ class GuiUserInfo:
 
 
 class GuiConfig:
-    __slots__ = ('enable_login', 'enable_productivity_look', 'special_resource_tag', 'current_user', 'current_workstation', 'user_list', 'workstation_list')
+    __slots__ = ('enable_login', 'enable_productivity_look', 'special_resource_tag', 'current_user',
+                 'current_workstation', 'user_list', 'workstation_list')
 
     def __init__(self):
         self.enable_login = False
@@ -75,19 +67,22 @@ class GuiConfig:
         return instance
 
 
-class MainConfig(metaclass=Singleton):
+class MainConfig(metaclass=util.Singleton):
     APP_VERSION = '2.2.0'
     APP_NAME = 'Factory Planner'
 
-    __slots__ = ('resources_file', 'recipes_file', 'repository', 'theme', 'productivity_look', 'debug', 'gui_config')
+    __slots__ = ('resources_file', 'recipes_file', 'repository', 'theme', 'productivity_look', 'debug', 'gui_config',
+                 'prod_tree_max_recursion_depth')
 
-    def __init__(self, resources_file: str = None, recipes_file: str = None, repo: RecipeRepository = None, theme=None,
+    def __init__(self, resources_file: str = None, recipes_file: str = None, repo: persistence.RecipeRepository = None,
+                 theme=None,
                  gui_config_file=None):
         self.resources_file = resources_file
         self.recipes_file = recipes_file
         self.repository = repo
         self.theme = theme
         self.debug = False
+        self.prod_tree_max_recursion_depth = 15
         if gui_config_file is not None:
             self.gui_config = GuiConfig.load_file(gui_config_file)
         else:

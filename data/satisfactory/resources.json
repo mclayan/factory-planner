@@ -2,276 +2,337 @@
   {
     "name": "Adaptive Control Unit",
     "id": "adaptive_control_unit",
-    "tags": [
-      "project_part"
-    ],
-    "raw": false
+    "raw": false,
+    "tags": []
   },
   {
     "name": "AI Limiter",
     "id": "ai_limiter",
-    "raw": false
+    "raw": false,
+    "tags": []
   },
   {
     "name": "Alumina Solution",
     "id": "alumina_solution",
-    "raw": false
+    "raw": false,
+    "tags": []
+  },
+  {
+    "name": "Aluminum Casing",
+    "id": "aluminium_casing",
+    "raw": false,
+    "tags": []
+  },
+  {
+    "name": "Aluminum Ingot",
+    "id": "aluminium_ingot",
+    "raw": false,
+    "tags": []
+  },
+  {
+    "name": "Aluminum Scrap",
+    "id": "aluminium_scrap",
+    "raw": false,
+    "tags": []
+  },
+  {
+    "name": "Alclad Aluminum Sheet",
+    "id": "aluminium_sheet",
+    "raw": false,
+    "tags": []
   },
   {
     "name": "Assembly Director System",
     "id": "assembly_director_system",
-    "tags": [
-      "project_part"
-    ],
-    "raw": false
+    "raw": false,
+    "tags": []
   },
   {
     "name": "Automated Wiring",
     "id": "automated_wiring",
-    "tags": [
-      "project_part"
-    ],
-    "raw": false
+    "raw": false,
+    "tags": []
   },
   {
     "name": "Bauxite",
     "id": "bauxite",
-    "raw": true
+    "raw": true,
+    "tags": []
   },
   {
     "name": "Black Powder",
     "id": "black_powder",
-    "raw": false
+    "raw": false,
+    "tags": []
   },
   {
     "name": "Cable",
     "id": "cable",
-    "raw": false
+    "raw": false,
+    "tags": []
   },
   {
     "name": "Caterium Ingot",
     "id": "caterium_ingot",
-    "raw": false
+    "raw": false,
+    "tags": []
   },
   {
     "name": "Caterium Ore",
     "id": "caterium_ore",
-    "raw": true
+    "raw": true,
+    "tags": []
   },
   {
     "name": "Circuit Board",
     "id": "circuit_board",
-    "raw": false
+    "raw": false,
+    "tags": []
   },
   {
     "name": "Coal",
     "id": "coal",
-    "raw": true
+    "raw": true,
+    "tags": []
   },
   {
     "name": "Computer",
     "id": "computer",
-    "raw": false
+    "raw": false,
+    "tags": []
   },
   {
     "name": "Concrete",
     "id": "concrete",
-    "raw": false
+    "raw": false,
+    "tags": []
   },
   {
     "name": "Copper Ingot",
     "id": "copper_ingot",
-    "raw": false
+    "raw": false,
+    "tags": []
   },
   {
     "name": "Copper Ore",
     "id": "copper_ore",
-    "raw": true
+    "raw": true,
+    "tags": []
   },
   {
     "name": "Copper Sheet",
     "id": "copper_sheet",
-    "raw": false
+    "raw": false,
+    "tags": []
   },
   {
     "name": "Crude Oil",
     "id": "crude_oil",
-    "raw": true
+    "raw": true,
+    "tags": []
   },
   {
     "name": "Encased Industrial Beam",
     "id": "encased_industrial_beam",
-    "raw": false
+    "raw": false,
+    "tags": []
   },
   {
     "name": "Fuel",
     "id": "fuel",
-    "raw": false
+    "raw": false,
+    "tags": []
   },
   {
     "name": "Heavy Modular Frame",
     "id": "heavy_modular_frame",
-    "raw": false
+    "raw": false,
+    "tags": []
   },
   {
     "name": "HighSpeed Connector",
     "id": "highspeed_connector",
-    "raw": false
+    "raw": false,
+    "tags": []
   },
   {
     "name": "Iron Ingot",
     "id": "iron_ingot",
-    "raw": false
+    "raw": false,
+    "tags": []
   },
   {
     "name": "Iron Ore",
     "id": "iron_ore",
-    "raw": true
+    "raw": true,
+    "tags": []
   },
   {
     "name": "Iron Plate",
     "id": "iron_plate",
-    "raw": false
+    "raw": false,
+    "tags": []
   },
   {
     "name": "Iron Rod",
     "id": "iron_rod",
-    "raw": false
+    "raw": false,
+    "tags": []
   },
   {
     "name": "Limestone",
     "id": "limestone",
-    "raw": true
+    "raw": true,
+    "tags": []
   },
   {
     "name": "Modular Engine",
     "id": "modular_engine",
-    "tags": [
-      "project_part"
-    ],
-    "raw": false
+    "raw": false,
+    "tags": []
   },
   {
     "name": "Modular Frame",
     "id": "modular_frame",
-    "raw": false
+    "raw": false,
+    "tags": []
   },
   {
     "name": "Motor",
     "id": "motor",
-    "raw": false
+    "raw": false,
+    "tags": []
   },
   {
     "name": "Heavy Oil Residue",
     "id": "oil_residue",
-    "raw": false
+    "raw": false,
+    "tags": []
   },
   {
     "name": "Plastic",
     "id": "plastic",
-    "raw": false
+    "raw": false,
+    "tags": []
   },
   {
     "name": "Polymer Resin",
     "id": "polymer_resin",
-    "raw": false
+    "raw": false,
+    "tags": []
   },
   {
     "name": "Quartz",
     "id": "quartz",
-    "raw": false
+    "raw": false,
+    "tags": []
   },
   {
     "name": "Quartz Crystal",
     "id": "quartz_crystal",
-    "raw": false
+    "raw": false,
+    "tags": []
   },
   {
     "name": "Quickwire",
     "id": "quickwire",
-    "raw": false
+    "raw": false,
+    "tags": []
   },
   {
     "name": "Reinforced Iron Plate",
     "id": "reinforced_iron_plate",
-    "raw": false
+    "raw": false,
+    "tags": []
   },
   {
     "name": "Rotor",
     "id": "rotor",
-    "raw": false
+    "raw": false,
+    "tags": []
   },
   {
     "name": "Rubber",
     "id": "rubber",
-    "raw": false
+    "raw": false,
+    "tags": []
   },
   {
     "name": "Screw",
     "id": "screw",
-    "raw": false
+    "raw": false,
+    "tags": []
   },
   {
     "name": "Silica",
     "id": "silica",
-    "raw": false
+    "raw": false,
+    "tags": []
   },
   {
     "name": "Smart Plating",
     "id": "smart_plating",
-    "raw": false
+    "raw": false,
+    "tags": []
   },
   {
     "name": "Smokeless Powder",
     "id": "smokeless_powder",
-    "raw": false
+    "raw": false,
+    "tags": []
   },
   {
     "name": "Stator",
     "id": "stator",
-    "raw": false
+    "raw": false,
+    "tags": []
   },
   {
     "name": "Steel Beam",
     "id": "steel_beam",
-    "raw": false
+    "raw": false,
+    "tags": []
   },
   {
     "name": "Steel Ingot",
     "id": "steel_ingot",
-    "raw": false
+    "raw": false,
+    "tags": []
   },
   {
     "name": "Steel Pipe",
     "id": "steel_pipe",
-    "raw": false
+    "raw": false,
+    "tags": []
   },
   {
     "name": "Sulfur",
     "id": "sulfur",
-    "raw": false
+    "raw": false,
+    "tags": []
   },
   {
     "name": "Supercomputer",
     "id": "supercomputer",
-    "raw": false
+    "raw": false,
+    "tags": []
   },
   {
     "name": "Versatile Framework",
     "id": "versatile_framework",
     "raw": false,
-    "tags": [
-      "project_part"
-    ]
+    "tags": []
   },
   {
     "name": "Water",
     "id": "water",
-    "raw": true
+    "raw": true,
+    "tags": []
   },
   {
     "name": "Wire",
     "id": "wire",
-    "raw": false
+    "raw": false,
+    "tags": []
   }
 ]

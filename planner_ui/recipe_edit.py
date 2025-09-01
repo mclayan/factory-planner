@@ -4,11 +4,11 @@ from tkinter import ttk
 import typing
 from typing import Optional, Callable
 
-from config import MainConfig
+from configuration import MainConfig
 from data import Recipe, Entity, ResourceQuantity, Resource, ResourceQuantities
 from planner_ui import RootController, T, entity_select, Controller, add_unimplemented_label
 from planner_ui.entity_select import ResQtSelectController, EntitySelect, EntitySelectController, ResQtSelect
-from repository import RecipeRepository
+from persistence import RecipeRepository
 
 
 class ResourceQuantityEditController(Controller[tuple[ResourceQuantities, float]]):

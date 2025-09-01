@@ -7,13 +7,15 @@ from argparse import ArgumentError
 from datetime import timedelta
 from typing import Self
 
-from data import Resource, Recipe, ResourceQuantity, Entity
+import data
+import util
 
 
 class DuplicateKeyError(BaseException):
 
     def __init__(self, msg: str):
         super().__init__(msg)
+
 
 class InvalidDataError(BaseException):
 
@@ -25,16 +27,16 @@ class InvalidDataError(BaseException):
 class RecipeRepository:
     __RX_ID = re.compile('([a-z0-9]+([a-z0-9]|_)*)')
 
-    __slots__=('logger', 'resources', 'recipes', 'mod_recipes', 'mod_resources')
+    __slots__ = ('logger', 'resources', 'recipes', 'mod_recipes', 'mod_resources')
 
     def __init__(self):
         self.logger = logging.getLogger(self.__class__.__name__)
-        self.resources: dict[str, Resource] = dict()
-        self.recipes: dict[str, Recipe] = dict()
+        self.resources: dict[str, data.Resource] = dict()
+        self.recipes: dict[str, data.Recipe] = dict()
         self.mod_recipes = False
         self.mod_resources = False
 
-    def add_resource(self, resource: Resource, is_load=False):
+    def add_resource(self, resource: data.Resource, is_load=False):
         if len(resource.name) == 0:
             raise InvalidDataError(f'resource name must not be empty', 'name')
         if len(resource.id) == 0:
@@ -49,7 +51,7 @@ class RecipeRepository:
         else:
             raise DuplicateKeyError(f'duplicate resource id: {resource.id}')
 
-    def add_recipe(self, recipe: Recipe, is_load=False):
+    def add_recipe(self, recipe: data.Recipe, is_load=False):
         if len(recipe.name) == 0:
             raise InvalidDataError(f'recipe name must not be empty')
         if len(recipe.id) == 0:
@@ -65,19 +67,19 @@ class RecipeRepository:
             raise DuplicateKeyError(f'duplicate recipe id: {recipe.id}')
 
     def load_resource(self, d: dict):
-        resource = Resource(d['name'], d['id'], d.get('raw', False), d.get('tags', None))
+        resource = data.Resource(d['name'], d['id'], d.get('raw', False), d.get('tags', None))
         self.add_resource(resource, True)
 
     def load_recipe(self, d: dict):
         name = d['name']
-        id = d['id']
+        rid = d['id']
         cycle_time = d['cycle_secs']
-        products = [ResourceQuantity(self.resource(res['id']), res['quantity']) for res in d['products']]
-        resources = [ResourceQuantity(self.resource(res['id']), res['quantity']) for res in d['resources']]
+        products = [data.ResourceQuantity(self.resource(res['id']), res['quantity']) for res in d['products']]
+        resources = [data.ResourceQuantity(self.resource(res['id']), res['quantity']) for res in d['resources']]
         tags = d.get('tags')
-        recipe = Recipe(
+        recipe = data.Recipe(
             name,
-            id,
+            rid,
             resources,
             products,
             timedelta(seconds=cycle_time),
@@ -103,48 +105,50 @@ class RecipeRepository:
         else:
             return False
 
-    def resource(self, res_id: str) -> typing.Optional[Resource]:
+    def resource(self, res_id: str) -> typing.Optional[data.Resource]:
         return self.resources.get(res_id, None)
 
-    def recipe(self, rec_id: str) -> Recipe|None:
+    def recipe(self, rec_id: str) -> data.Recipe | None:
         return self.recipes.get(rec_id, None)
 
-    def resource_by_name(self, name: str) -> typing.Optional[Resource]:
+    def resource_by_name(self, name: str) -> typing.Optional[data.Resource]:
         name_lc = name.lower()
         for resource in self.resources.values():
             if resource.name.lower() == name_lc:
                 return resource
         return None
 
-    def recipe_by_name(self, name: str) -> typing.Optional[Recipe]:
+    def recipe_by_name(self, name: str) -> typing.Optional[data.Recipe]:
         name_lc = name.lower()
         for recipe in self.recipes.values():
             if recipe.name.lower() == name_lc:
                 return recipe
         return None
 
-    def find_recipes_by_product(self, product: Resource) -> list[Recipe]:
-        results = []
-        for recipe in self.recipes.values():
+    def find_recipes_by_product(self, product: data.Resource, excluded: set[data.Recipe] | set[str] = None) -> set[
+        data.Recipe]:
+        results = set()
+        blacklist = list(map(lambda r: r.get_id() if isinstance(r, data.Recipe) else r, excluded or set()))
+        for recipe in filter(lambda r: r.id not in blacklist, self.recipes.values()):
             if product.id in recipe.products:
-                results.append(recipe)
+                results.add(recipe)
 
         return results
 
-    def update_recipe(self, recipe: Recipe):
+    def update_recipe(self, recipe: data.Recipe):
         self.logger.debug(f'updating recipe {recipe}')
         old = self.recipe(recipe.id)
         if old is None:
             self.add_recipe(recipe, False)
         elif not old.is_equal(recipe):
-            for resource in list(recipe.products.values()) + list( recipe.resources.values()):
+            for resource in list(recipe.products.values()) + list(recipe.resources.values()):
                 if resource not in self.resources:
                     raise ArgumentError(resource, 'resource does not exist in repository!')
             self.recipes[recipe.id] = recipe
             self.mod_recipes = True
 
-    def update_entity(self, entity_id: str, entity: Entity) -> bool:
-        if isinstance(entity, Resource):
+    def update_entity(self, entity_id: str, entity: data.Entity) -> bool:
+        if isinstance(entity, data.Resource):
             old = self.resources.get(entity_id, None)
             if old is None:
                 print(f'repository: no such resource with id={entity_id}')
@@ -161,7 +165,7 @@ class RecipeRepository:
                 if old.name != entity.name or old.is_raw != entity.is_raw:
                     self.resources[entity_id] = entity
                     self.mod_resources = True
-        elif isinstance(entity, Recipe):
+        elif isinstance(entity, data.Recipe):
             old = self.recipes.get(entity_id, None)
             if old is None:
                 print(f'repository: no such recipe with id={entity_id}')
@@ -187,7 +191,6 @@ class RecipeRepository:
         return RecipeRepository.__RX_ID.fullmatch(id_str) is not None
 
 
-
 def load_repository(resources_path: str, recipes_path: str):
     repo = RecipeRepository()
     j_res_arr = []
@@ -206,11 +209,13 @@ def load_repository(resources_path: str, recipes_path: str):
 
     return repo
 
-def save_repository(repo: RecipeRepository, resources_path: typing.Optional[str], recipes_path: typing.Optional[str], force=False):
+
+def save_repository(repo: RecipeRepository, resources_path: typing.Optional[str], recipes_path: typing.Optional[str],
+                    force=False):
     if repo.mod_recipes or force:
         if recipes_path is not None:
             j_rec_arr = []
-            vals_sorted = sorted(repo.recipes.values(), key=Recipe.get_id)
+            vals_sorted = sorted(repo.recipes.values(), key=data.Recipe.get_id)
             for recipe in vals_sorted:
                 j_rec_arr.append(recipe.as_dict())
 
@@ -226,7 +231,7 @@ def save_repository(repo: RecipeRepository, resources_path: typing.Optional[str]
     if repo.mod_resources or force:
         if resources_path is not None:
             j_res_arr = []
-            vals_sorted = sorted(repo.resources.values(), key=Resource.get_id)
+            vals_sorted = sorted(repo.resources.values(), key=data.Resource.get_id)
             for resource in vals_sorted:
                 j_res_arr.append(resource.as_dict())
 
@@ -258,25 +263,68 @@ class RecipeBuilder:
         self._id = id
         return self
 
-    def resource(self, resource: str|Resource, quantity: float) -> Self:
+    def resource(self, resource: str | data.Resource, quantity: float) -> Self:
         resource = self._repo.resource(resource) if resource is str else resource
         if resource is None:
             raise ArgumentError(None, f'resource {resource} not found!')
 
-        self._resources.append(ResourceQuantity(resource, quantity))
+        self._resources.append(data.ResourceQuantity(resource, quantity))
         return self
 
-    def product(self, resource: str|Resource, quantity: float) -> Self:
+    def product(self, resource: str | data.Resource, quantity: float) -> Self:
         resource = self._repo.resource(resource) if resource is str else resource
         if resource is None:
             raise ArgumentError(None, f'resource {resource} not found!')
 
-        self._products.append(ResourceQuantity(resource, quantity))
+        self._products.append(data.ResourceQuantity(resource, quantity))
         return self
 
     def cycle_time(self, time: timedelta) -> Self:
         self._cycle_time = time
         return self
 
-    def build(self) -> Recipe:
-        return Recipe(self._name, self._id, self._resources, self._products, self._cycle_time)
+    def build(self) -> data.Recipe:
+        return data.Recipe(self._name, self._id, self._resources, self._products, self._cycle_time)
+
+
+class ProdAssocRepository(metaclass=util.Singleton):
+
+    @staticmethod
+    def _map_prod_assocs(s: set[data.ProductionAssoc]) -> dict[data.Resource, set[data.Recipe]]:
+        result: dict[data.Resource, set[data.Recipe]] = dict()
+        for pra in s:
+            if pra.product not in result:
+                result[pra.product] = {pra.recipe}
+            else:
+                result[pra.product].add(pra.recipe)
+        return result
+
+    @staticmethod
+    def _make_prod_assocs(d: dict[data.Resource, set[data.Recipe]]) -> set[data.ProductionAssoc]:
+        result = set()
+        for resource, recipes in d.items():
+            for recipe in recipes:
+                result.add(data.ProductionAssoc(resource, recipe))
+        return result
+
+    def __init__(self):
+        self._cache: dict[data.Recipe, dict[data.Resource, set[data.Recipe]]] = dict()
+
+    def get_associations(self, recipe: data.Recipe) -> set[data.ProductionAssoc]:
+        return self._make_prod_assocs(self._cache.get(recipe, dict()))
+
+    def get_associations_raw(self, recipe: data.Recipe) -> dict[data.Resource, set[data.Recipe]]:
+        return self._cache.get(recipe, dict())
+
+    def add_associations(self, recipe: data.Recipe, associations: set[data.ProductionAssoc]):
+        if recipe in self._cache:
+            assoc = self._map_prod_assocs(associations)
+            self._cache.get(recipe).update(assoc)
+        else:
+            self.update_associations(recipe, associations)
+
+    def update_associations(self, recipe: data.Recipe, associations: set[data.ProductionAssoc]):
+        self._cache[recipe] = self._map_prod_assocs(associations)
+
+    def __iter__(self):
+        return self._cache.__iter__()

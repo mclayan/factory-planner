@@ -164,11 +164,11 @@ class TargetedProduction:
         return ProductionResources(resources, byproducts)
 
     def __str__(self) -> str:
-        return self.str_for_rpm(self.base_rpm)
+        return self.str_for_rpm(self.base_rpm, self.product.name)
 
-    def str_for_rpm(self, rpm: float):
+    def str_for_rpm(self, rpm: float, recipe_name: str):
         recipe_fact = rpm / self.base_rpm
-        result = f'{recipe_fact:.1f}x "{self.product.name}": ['
+        result = f'{recipe_fact:.1f}x "{recipe_name}": ['
         r_count = 0
         for resource in self.resources:
             if r_count > 0:
@@ -344,3 +344,16 @@ class ScaledRecipe:
 
     def __repr__(self):
         return f'ScaledRecipe[{self.scale:.2f}x "{self.recipe.name}"]'
+
+
+class ProductionAssoc:
+
+    def __init__(self, product: Resource, recipe: Recipe):
+        self.product = product
+        self.recipe = recipe
+
+    def __eq__(self, other: 'ProductionAssoc'):
+        return self.recipe.id == other.recipe.id and self.product.id == other.product.id
+
+    def __hash__(self):
+        return hash((self.product.id, self.recipe.id))

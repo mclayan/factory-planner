@@ -5,15 +5,12 @@ from abc import ABC, abstractmethod
 from argparse import ArgumentParser, ArgumentError
 from collections.abc import Iterator, Callable
 from datetime import timedelta
-from symtable import Function
 from typing import Any
 
+import persistence
 import chaining
-import repository
-from chaining import ProductionTree
-from config import MainConfig
-from data import Resource
-from repository import RecipeRepository, DuplicateKeyError, RecipeBuilder
+import configuration
+import data
 
 
 def generate_id(name: str) -> str:
@@ -56,7 +53,7 @@ def noopt() -> Any:
 
 class CliCommand(ABC):
 
-    def __init__(self, config: MainConfig, parser: ArgumentParser):
+    def __init__(self, config: configuration.MainConfig, parser: ArgumentParser):
         self.main_config = config
         self.parser = parser
         self.parser.exit_on_error = False
@@ -82,7 +79,7 @@ class AddResourceCommand(CliCommand):
     def command_name(self) -> str:
         return AddResourceCommand.cmd_name
 
-    def __init__(self, config: MainConfig):
+    def __init__(self, config: configuration.MainConfig):
         parser = ArgumentParser(prog=AddResourceCommand.cmd_name)
         parser.add_argument('-i', '--id', metavar='NAME', dest='resource_id', help='Set resource id.', default='')
         parser.add_argument('-r', '--raw', action='store_true', dest='is_raw',
@@ -98,18 +95,18 @@ class AddResourceCommand(CliCommand):
         resource_id: str = args.resource_id
         if len(resource_id) == 0:
             resource_id = generate_id(resource_name)
-        resource = Resource(resource_name, resource_id)
+        resource = data.Resource(resource_name, resource_id)
         try:
             self.repository.add_resource(resource)
             print(f'{resource_id}: {resource}')
-        except DuplicateKeyError as e:
+        except persistence.DuplicateKeyError as e:
             print(f'Failed to add resource: {e}')
 
 
 class AddRawResourceRecipe(CliCommand):
     cmd_name = 'add-source'
 
-    def __init__(self, config: MainConfig):
+    def __init__(self, config: configuration.MainConfig):
         parser = ArgumentParser(prog=AddRawResourceRecipe.cmd_name)
         parser.add_argument('-i', '--id', metavar='NAME', dest='recipe_id', help='Set recipe id.')
         parser.add_argument('-p', '--product', help='Resource produced by executing the recipe.', nargs=2,
@@ -155,7 +152,7 @@ class AddRawResourceRecipe(CliCommand):
         product = self.repository.resource(prod_id) if prod_id is not None else self.repository.resource_by_name(
             prod_name)
 
-        recipe = RecipeBuilder(self.repository) \
+        recipe = persistence.RecipeBuilder(self.repository) \
             .cycle_time(timedelta(minutes=1)) \
             .name(recipe_name) \
             .id(recipe_id) \
@@ -166,14 +163,14 @@ class AddRawResourceRecipe(CliCommand):
         try:
             self.repository.add_recipe(recipe)
             print(recipe)
-        except DuplicateKeyError as e:
+        except persistence.DuplicateKeyError as e:
             print(f'Failed to add recipe "{recipe_name}": {e}')
 
 
 class AddRecipeCommand(CliCommand):
     cmd_name = 'add-recipe'
 
-    def __init__(self, config: MainConfig):
+    def __init__(self, config: configuration.MainConfig):
         parser = ArgumentParser(prog=AddRecipeCommand.cmd_name)
         parser.add_argument('-i', '--id', metavar='NAME', dest='recipe_id', help='Set recipe id.')
         parser.add_argument('-t', '--time', metavar='DURATION', dest='cycle_time',
@@ -245,7 +242,7 @@ class AddRecipeCommand(CliCommand):
         if len(args.resources) > 0 and len(resource_stubs) == 0:
             return
 
-        builder = RecipeBuilder(self.repository) \
+        builder = persistence.RecipeBuilder(self.repository) \
             .cycle_time(timedelta(hours=cycle_hours, minutes=cycle_mins, seconds=cycle_secs)) \
             .name(recipe_name) \
             .id(recipe_id)
@@ -272,7 +269,7 @@ class AddRecipeCommand(CliCommand):
         try:
             self.repository.add_recipe(recipe)
             print(recipe)
-        except DuplicateKeyError as e:
+        except persistence.DuplicateKeyError as e:
             print(f'Failed to add recipe "{recipe_name}": {e}')
 
 
@@ -309,7 +306,7 @@ class FindRecipes(CliCommand):
                 production = recipe.production(product)
                 print(f'└──⏵ {production}')
 
-    def __init__(self, config: MainConfig):
+    def __init__(self, config: configuration.MainConfig):
         parser = ArgumentParser(prog=FindRecipes.cmd_name)
         parser.add_argument('-p', '--product', metavar="NAME | @<ID>", dest='product',
                             help='Find recipes by producing product')
@@ -322,7 +319,7 @@ class FindRecipes(CliCommand):
 class BuildDependencyTree(CliCommand):
     cmd_name = 'tree'
 
-    def __init__(self, config: MainConfig):
+    def __init__(self, config: configuration.MainConfig):
         parser = ArgumentParser(prog=self.cmd_name)
         parser.add_argument('recipe_sel', metavar='RECIPE')
         parser.add_argument('-l', '--limit', type=int, dest='limit', default=None,
@@ -332,7 +329,10 @@ class BuildDependencyTree(CliCommand):
         parser.add_argument('-r', '--rpm', type=float, default=None,
                             help='Target RPM of the selected product. If not set, the default RPM for the product in the recipe will be used.')
 
-        parser.add_argument('-R', '--exclude', metavar='RECIPE', dest='excluded', action='extend', nargs='+', help='Exclude the recipe from the dependency tree.')
+        parser.add_argument('-R', '--exclude', metavar='RECIPE', dest='excluded', action='extend', nargs='+',
+                            help='Exclude the recipe from the dependency tree.')
+        parser.add_argument('-a', '--show-alternatives', dest='show_alts', default=False, action='store_true',
+                            help='Print all possible alternatives for every intermediate recipe.')
 
         super().__init__(config, parser)
         self.repository = self.main_config.repository
@@ -359,7 +359,7 @@ class BuildDependencyTree(CliCommand):
             return
 
         exclusions = []
-        for exclusion in args.excluded:
+        for exclusion in args.excluded or []:
             excl_sel = ObjectStub.parse(exclusion)
             if excl_sel.id is not None:
                 excl_recipe = self.repository.recipe(excl_sel.id)
@@ -393,13 +393,23 @@ class BuildDependencyTree(CliCommand):
         else:
             rpm = recipe.production(product).get_base_rpm()
 
-        tree = ProductionTree(recipe, product, rpm)
+        tree = chaining.ProductionTree(recipe, product, rpm)
+        tree.config.blacklist = set(exclusions)
         if args.limit is None:
-            tree.build(self.repository, excluded_recipes=set(exclusions))
+            tree.build(self.repository)
         else:
-            tree.build(self.repository, args.limit, excluded_recipes=set(exclusions))
+            tree.build(self.repository, args.limit)
 
-        print('Dependency tree:')
+        if args.show_alts:
+            alternatives = tree.find_alternatives()
+            print(f'found {len(alternatives)} alternatives')
+            if len(alternatives) > 0:
+                alt = list(alternatives)
+                alt.sort(key=lambda a: a.product.get_id())
+                for alt in alt:
+                    print(f'[Alt] Product: "{alt.product}": {alt.recipe}')
+
+        print('\nDependency tree:')
         tree.print_tree()
         print('\nAggregated resources:')
         aggregate = tree.get_aggregate()
@@ -417,7 +427,7 @@ class BuildDependencyTree(CliCommand):
 class ListObjects(CliCommand):
     cmd_name = 'ls'
 
-    def __init__(self, config: MainConfig):
+    def __init__(self, config: configuration.MainConfig):
         parser = ArgumentParser(prog=self.cmd_name)
         parser.add_argument('-p', '--product', type=str, default=None, help='Display specific resource/product.')
         parser.add_argument('-r', '--recipe', type=str, default=None, help='Display specific recipe.')
@@ -475,7 +485,7 @@ class ListObjects(CliCommand):
 class RemoveResource(CliCommand):
     cmd_name = 'rm-resource'
 
-    def __init__(self, config: MainConfig):
+    def __init__(self, config: configuration.MainConfig):
         parser = ArgumentParser(prog=self.cmd_name)
         parser.add_argument(metavar='NAME|ID', dest='resource_sel')
         super().__init__(config, parser)
@@ -514,7 +524,7 @@ class RemoveResource(CliCommand):
 class RemoveRecipe(CliCommand):
     cmd_name = 'rm-recipe'
 
-    def __init__(self, config: MainConfig):
+    def __init__(self, config: configuration.MainConfig):
         parser = ArgumentParser(prog=self.cmd_name)
         parser.add_argument(metavar='NAME|ID', dest='recipe_sel')
         super().__init__(config, parser)
@@ -541,11 +551,11 @@ class RemoveRecipe(CliCommand):
 class SaveRepository(CliCommand):
     cmd_name = 'save'
 
-    def __init__(self, config: MainConfig):
+    def __init__(self, config: configuration.MainConfig):
         parser = ArgumentParser(prog=self.cmd_name)
         parser.add_argument('-f', '--force', dest='force', action='store_true', help='Force writing repository')
-        parser.add_argument( '--recipes', metavar='FILE', dest='recipes_file', help='Custom recipes file')
-        parser.add_argument( '--resources', metavar='FILE', dest='resources_file', help='Custom resources file')
+        parser.add_argument('--recipes', metavar='FILE', dest='recipes_file', help='Custom recipes file')
+        parser.add_argument('--resources', metavar='FILE', dest='resources_file', help='Custom resources file')
         super().__init__(config, parser)
         self.repository = self.main_config.repository
 
@@ -569,10 +579,9 @@ class SaveRepository(CliCommand):
                 print(f'saving resources -> {resources_path}')
             if recipes_path is not None:
                 print(f'saving recipes   -> {recipes_path}')
-            repository.save_repository(self.repository, resources_path, recipes_path, args.force)
+            persistence.save_repository(self.repository, resources_path, recipes_path, args.force)
         else:
             print(f'No modification done, not saving repository (use --force to force saving)')
-
 
 
 class Completer:
@@ -596,10 +605,12 @@ class Completer:
 
 class Cli:
 
-    def __init__(self, main_cfg: MainConfig):
+    def __init__(self, main_cfg: configuration.MainConfig):
         self.repo = main_cfg.repository
-        self.commands = [AddRecipeCommand(main_cfg), AddResourceCommand(main_cfg), FindRecipes(main_cfg), BuildDependencyTree(main_cfg),
-                         ListObjects(main_cfg), AddRawResourceRecipe(main_cfg), RemoveResource(main_cfg), RemoveRecipe(main_cfg),
+        self.commands = [AddRecipeCommand(main_cfg), AddResourceCommand(main_cfg), FindRecipes(main_cfg),
+                         BuildDependencyTree(main_cfg),
+                         ListObjects(main_cfg), AddRawResourceRecipe(main_cfg), RemoveResource(main_cfg),
+                         RemoveRecipe(main_cfg),
                          SaveRepository(main_cfg)]
         readline.parse_and_bind('tab: complete')
         readline.set_completer_delims(' ')

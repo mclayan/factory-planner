@@ -3,10 +3,10 @@ import tkinter.ttk as ttk
 import typing
 
 from data import Resource, Recipe
-from config import MainConfig, GuiConfig
+from configuration import MainConfig, GuiConfig
 from . import Controller, AppGlobals, add_unimplemented_label
 from .entity_select import EntitySelectController
-from repository import RecipeRepository
+from persistence import RecipeRepository
 from .login import LoginController
 from .planner import PlannerView, PlannerController
 from .recipe_edit import RecipeEditController

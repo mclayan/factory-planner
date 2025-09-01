@@ -8,7 +8,7 @@ from tkinter import StringVar
 from typing import Optional
 
 from data import Entity, Recipe, Resource, ResourceQuantity, ResourceQuantities
-from repository import RecipeRepository
+from persistence import RecipeRepository
 from . import T, RootController, View
 
 from .application import Controller

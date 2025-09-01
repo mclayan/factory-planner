@@ -7,8 +7,8 @@ __all__ = ['Controller', 'RootController', 'T']
 
 from collections.abc import Callable
 
-from config import MainConfig
-from repository import RecipeRepository
+import configuration
+import persistence
 
 T = typing.TypeVar('T')
 
@@ -61,7 +61,7 @@ class Controller(typing.Generic[T], ABC):
         self.__INSTANCES[id_str] = self
         self.view_id = view_id
         self.logger = logging.getLogger(view_id.str_ctl())
-        self.logger.setLevel(MainConfig().log_level())
+        self.logger.setLevel(configuration.MainConfig().log_level())
 
     @abstractmethod
     def widget(self) -> tk.Widget:
@@ -91,7 +91,7 @@ class Controller(typing.Generic[T], ABC):
 
 class RootController(Controller[T], ABC):
 
-    def __init__(self, v_id: str, parent: typing.Optional[typing.Self], repository: RecipeRepository):
+    def __init__(self, v_id: str, parent: typing.Optional[typing.Self], repository: persistence.RecipeRepository):
         super().__init__(v_id, parent)
         self.repository = repository
 
